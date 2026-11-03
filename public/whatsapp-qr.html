@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Catalogue QR</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root { --blue:#01517E; --green:#36941E; --ink:#1b2a33; --muted:#5b6b75; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; color:var(--ink); background:#eef2f4; }
+  .setup { max-width:620px; margin:24px auto; padding:0 16px; }
+  .setup label { display:block; font-size:14px; font-weight:bold; margin:14px 0 6px; }
+  .setup input { width:100%; padding:10px 12px; font-size:16px; border:1px solid #b9c6cd; border-radius:8px; }
+  .setup p { color:var(--muted); font-size:14px; line-height:1.45; }
+  .setup button { margin-top:16px; padding:12px 18px; font-size:16px; border:0; border-radius:8px; background:var(--blue); color:#fff; cursor:pointer; }
+  .poster { width:210mm; min-height:297mm; margin:24px auto; background:#fff; padding:18mm 16mm; text-align:center;
+            display:flex; flex-direction:column; align-items:center; box-shadow:0 2px 12px rgba(0,0,0,.12); }
+  .brand { font-size:30px; font-weight:bold; color:var(--blue); letter-spacing:.5px; }
+  .brand span { color:var(--green); }
+  .tag { margin-top:6px; color:var(--muted); font-size:15px; }
+  h1 { font-size:46px; line-height:1.1; margin:14mm 0 4mm; color:var(--ink); }
+  .sub { font-size:20px; color:var(--muted); margin:0 0 10mm; }
+  #qr { padding:8mm; border:3px solid var(--green); border-radius:18px; }
+  #qr img, #qr canvas { width:110mm !important; height:110mm !important; }
+  .steps { margin-top:10mm; display:flex; gap:8mm; justify-content:center; font-size:17px; }
+  .steps div { max-width:52mm; }
+  .steps b { display:block; width:34px; height:34px; line-height:34px; margin:0 auto 6px; border-radius:50%; background:var(--blue); color:#fff; }
+  .divs { margin-top:auto; padding-top:10mm; font-size:16px; color:var(--blue); font-weight:bold; }
+  .num { margin-top:4mm; font-size:15px; color:var(--muted); }
+  @media print {
+    body { background:#fff; }
+    .setup { display:none; }
+    .poster { margin:0; box-shadow:none; }
+    @page { size:A4; margin:0; }
+  }
+  @media (max-width:820px) { .poster { width:100%; min-height:0; } #qr img, #qr canvas { width:70vw !important; height:70vw !important; } .steps { flex-direction:column; align-items:center; } h1 { font-size:34px; } }
+</style>
+</head>
+<body>
+<div class="setup">
+  <label for="num">Company WhatsApp number (the bot number, with country code)</label>
+  <input id="num" inputmode="tel" placeholder="e.g. 91 98XXXXXXXX">
+  <label for="msg">Message the visitor's WhatsApp opens with</label>
+  <input id="msg" value="Hi, please send me your catalogue">
+  <p>The QR opens WhatsApp with this message ready to send to your bot number. When the visitor taps send, the bot replies with the catalogue menu. Print on A4 for a table stand, or scale up for a standee.</p>
+  <button type="button" id="print">Print poster</button>
+</div>
+
+<div class="poster">
+  <div class="brand">RONCH <span>EXCEL</span></div>
+  <div class="tag">Ronch Excel Industries Pvt Ltd · www.ronchexcel.com</div>
+  <h1>Get our catalogue<br>on WhatsApp</h1>
+  <p class="sub">Scan, tap send, choose a division. The PDF arrives in seconds.</p>
+  <div id="qr"></div>
+  <div class="steps">
+    <div><b>1</b>Scan with your phone camera</div>
+    <div><b>2</b>Tap send in WhatsApp</div>
+    <div><b>3</b>Pick a division and receive the PDF</div>
+  </div>
+  <div class="divs">Facade · Landscape · Solar · LED Drivers (CV &amp; CC) · Indoor</div>
+  <div class="num" id="numShow"></div>
+</div>
+
+<script>
+(function () {
+  var num = document.getElementById('num'), msg = document.getElementById('msg');
+  var box = document.getElementById('qr'), show = document.getElementById('numShow');
+  var qr = null;
+  try { num.value = localStorage.getItem('waNum') || ''; } catch (e) {}
+  function draw() {
+    var digits = num.value.replace(/\D/g, '');
+    try { localStorage.setItem('waNum', num.value); } catch (e) {}
+    box.innerHTML = '';
+    if (digits.length < 11) { box.textContent = 'Enter the WhatsApp number above'; show.textContent = ''; return; }
+    var link = 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg.value || 'Hi');
+    qr = new QRCode(box, { text: link, width: 600, height: 600, correctLevel: QRCode.CorrectLevel.M });
+    show.textContent = 'Or message +' + digits + ' on WhatsApp';
+  }
+  num.addEventListener('input', draw); msg.addEventListener('input', draw);
+  document.getElementById('print').addEventListener('click', function () { window.print(); });
+  draw();
+})();
+</script>
+</body>
+</html>

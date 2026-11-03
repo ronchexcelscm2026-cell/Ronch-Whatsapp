@@ -1,0 +1,14 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["netlify/functions/catalogues.json"]
+
+# PDFs: let WhatsApp fetch them quickly and cache them
+[[headers]]
+  for = "/catalogues/*"
+  [headers.values]
+    Content-Type = "application/pdf"
+    Cache-Control = "public, max-age=3600"

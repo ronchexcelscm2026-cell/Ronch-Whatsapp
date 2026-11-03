@@ -1,0 +1,14 @@
+{
+  "company": "Ronch Excel Industries Pvt Ltd",
+  "website": "www.ronchexcel.com",
+  "welcome": "Welcome to Ronch Excel Industries! Thank you for visiting our stand.\n\nTap *View catalogues* and pick a division to receive its catalogue as a PDF here.",
+  "afterSend": "Hope this helps. Want another catalogue or a call from our team?",
+  "salesReply": "Thank you! Our sales team will call you shortly on this number. You can also reply here with your project details, quantity or site location.",
+  "divisions": [
+    { "id": "facade",    "title": "Facade Lighting",       "description": "Linear, wall washers, pixel and flood lights",  "file": "facade.pdf",    "filename": "Ronch Excel - Facade Lighting.pdf" },
+    { "id": "landscape", "title": "Landscape Lighting",    "description": "Bollards, spike, underwater and garden lights", "file": "landscape.pdf", "filename": "Ronch Excel - Landscape Lighting.pdf" },
+    { "id": "solar",     "title": "Solar Lighting",        "description": "Solar street, garden and area lights",          "file": "solar.pdf",     "filename": "Ronch Excel - Solar Lighting.pdf" },
+    { "id": "drivers",   "title": "LED Drivers (CV & CC)", "description": "Constant voltage and constant current drivers", "file": "led-drivers.pdf","filename": "Ronch Excel - LED Drivers CV & CC.pdf" },
+    { "id": "indoor",    "title": "Indoor Lighting",       "description": "Panels, downlights, profiles and track lights", "file": "indoor.pdf",    "filename": "Ronch Excel - Indoor Lighting.pdf" }
+  ]
+}
