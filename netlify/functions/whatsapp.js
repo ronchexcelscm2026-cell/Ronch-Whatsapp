@@ -43,7 +43,6 @@ async function waSend(payload) {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`WhatsApp ${res.status}: ${text.slice(0, 300)}`);
-  console.log('Sent', payload.type, 'to', payload.to);
   return text;
 }
 
@@ -184,7 +183,6 @@ exports.handler = async (event) => {
   // Meta's one-time webhook verification
   if (event.httpMethod === 'GET') {
     const q = event.queryStringParameters || {};
-    console.log('Webhook verification request from Meta');
     if (q['hub.mode'] === 'subscribe' && q['hub.verify_token'] && q['hub.verify_token'] === env('WA_VERIFY_TOKEN')) {
       return { statusCode: 200, body: q['hub.challenge'] || '' };
     }
@@ -194,12 +192,7 @@ exports.handler = async (event) => {
 
   const raw = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
   const headers = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
-  console.log('Webhook POST received, bytes:', raw.length);
-  if (!validSignature(raw, headers['x-hub-signature-256'])) {
-    console.error('REJECTED: signature does not match. WA_APP_SECRET in Netlify is not this app\'s App secret.');
-    return { statusCode: 401, body: 'Bad signature' };
-  }
-  if (!env('WA_TOKEN') || !env('WA_PHONE_NUMBER_ID')) console.error('WA_TOKEN or WA_PHONE_NUMBER_ID is missing in Netlify environment variables.');
+  if (!validSignature(raw, headers['x-hub-signature-256'])) return { statusCode: 401, body: 'Bad signature' };
 
   connectLambda(event);
 
@@ -217,7 +210,6 @@ exports.handler = async (event) => {
           jobs.push(recordLead(s.recipient_id, '', { failed: `Delivery failed: ${err.code || ''} ${err.title || ''} ${(err.error_data && err.error_data.details) || ''}`.trim() }));
         }
       }
-      console.log('Event:', change.field, '| messages:', (v.messages || []).length, '| statuses:', (v.statuses || []).map(s => s.status).join(',') || '-');
       const contacts = v.contacts || [];
       for (const msg of v.messages || []) {
         if (seen.has(msg.id)) continue;        // Meta sometimes delivers the same message twice
