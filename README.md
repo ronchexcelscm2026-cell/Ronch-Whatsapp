@@ -2,8 +2,9 @@
 
 Visitor scans the stand QR → WhatsApp opens with "Hi, please send me your catalogue" → they tap send →
 the bot replies with a menu (Facade, Landscape, Solar, LED Drivers CV & CC, Indoor, All, Talk to sales) →
-they pick one → the PDF arrives. Every contact, catalogue request and call-back request is emailed to
-your sales inbox through Brevo.
+they pick one → the PDF arrives. Every visitor is saved to a lead list on your site:
+open `https://<your-site>/leads`, enter your password, see the table or download it as CSV for Excel.
+No email is used anywhere.
 
 Visitors message first, so every reply is inside WhatsApp's 24-hour customer-service window: no
 message templates to get approved, and under Meta's current pricing these replies are not charged
@@ -79,11 +80,7 @@ Site configuration → Environment variables, add:
 | `WA_PHONE_NUMBER_ID` | from step 3.3 |
 | `WA_VERIFY_TOKEN` | any secret text you make up, e.g. `ronch-acetech-2026` |
 | `WA_APP_SECRET` | from step 3.6 |
-| `LEAD_EMAIL` | inbox for lead alerts, e.g. karthick.d@ronchexcel.com |
-| `BREVO_API_KEY` | your Brevo API key (Brevo → SMTP & API → API keys) |
-| `MAIL_FROM` | a sender address already **validated in Brevo** (Senders, domains & IPs) |
-
-Without the two Brevo values the bot still works; you just won't get lead emails.
+| `LEADS_PASSWORD` | a password of your choice for the `/leads` page |
 After adding or changing variables: **Deploys → Trigger deploy** — they only apply after a redeploy.
 
 ## 5. Connect the webhook
@@ -104,7 +101,7 @@ In Development mode Meta only sends test webhooks, so real visitors would get no
 
 1. From your personal phone, send "Hi" to the bot number. You should get the menu.
 2. Pick Facade → the PDF arrives, followed by "More catalogues / Talk to sales".
-3. Check `LEAD_EMAIL` for the lead alerts.
+3. Open `https://<your-site>/leads`, enter `LEADS_PASSWORD`: your test chats should be listed.
 4. Open `https://<your-site>.netlify.app/whatsapp-qr.html`, type the bot number, print the poster.
    Test the printed QR with 2–3 different phones.
 
@@ -112,15 +109,24 @@ In Development mode Meta only sends test webhooks, so real visitors would get no
 
 | Visitor sends | Bot does |
 |---|---|
-| Anything (first message) | Sends the menu; emails sales the message |
+| Anything (first message) | Sends the menu; saves their message to the lead list |
 | Picks a division | Sends that PDF + follow-up buttons |
 | Picks "All catalogues" | Sends all five PDFs |
-| "Talk to sales", or a message with *price / quote / call / sales* | Confirms a call back; emails sales |
+| "Talk to sales", or a message with *price / quote / call / sales* | Confirms a call back; marks the lead **Call back** |
 | 1–5 typed as a number | Sends that division's PDF |
-| STOP | Confirms opt-out; emails sales so you remove them |
+| STOP | Confirms opt-out; marks the lead **Opted out** |
 
-If a PDF fails to deliver (for example a wrong file name), the sales inbox gets a "delivery failed" email
-with the visitor's number so someone can send it by hand.
+If a PDF fails to deliver (for example a wrong file name), that lead is marked **Send failed** on the
+lead list so someone can send it by hand.
+
+## Lead list (`/leads`)
+
+- Newest first: WhatsApp name, mobile (tap to call or open WhatsApp), catalogues sent, anything they typed,
+  first and last contact time (IST), and tags for **Call back**, **Opted out**, **Send failed**.
+- **Download CSV (Excel)** exports everything. Do this at the end of each show day.
+- Check it a few times a day at the stand: visitors who tapped *Talk to sales* are waiting for your call.
+- Visitors' typed messages appear only here; the bot number has no WhatsApp app to read chats in.
+  To reply, call them or message them from a staff phone using the WhatsApp link.
 
 ## Troubleshooting
 

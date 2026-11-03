@@ -12,3 +12,9 @@
   [headers.values]
     Content-Type = "application/pdf"
     Cache-Control = "public, max-age=3600"
+
+# Lead list page
+[[redirects]]
+  from = "/leads"
+  to = "/.netlify/functions/leads"
+  status = 200

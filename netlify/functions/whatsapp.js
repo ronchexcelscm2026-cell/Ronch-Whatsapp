@@ -6,7 +6,7 @@
     1. Visitor scans the stand QR -> WhatsApp opens with "Hi, please send me your catalogue" to our number.
     2. Any message from the visitor -> bot replies with a menu of the five divisions (+ All, + Talk to sales).
     3. Visitor picks a division -> bot sends that catalogue PDF, then offers "More catalogues" / "Talk to sales".
-    4. Every first contact, catalogue request and sales request is emailed to the sales inbox (Brevo).
+    4. Every visitor is saved to the site's lead list (Netlify Blobs) - see /leads for the table and CSV.
 
   Because the visitor messages first, all replies fall inside WhatsApp's 24-hour customer-service
   window, so no message templates are needed.
@@ -18,13 +18,11 @@
     WA_PHONE_NUMBER_ID  Phone number ID from WhatsApp > API Setup
     WA_VERIFY_TOKEN     any secret text; type the same text in Meta's webhook setup
     WA_APP_SECRET       App secret (App settings > Basic) - used to check messages really come from Meta
-    BREVO_API_KEY       already set for the visitor form
-    MAIL_FROM           validated Brevo sender, already set for the visitor form
-    LEAD_EMAIL          inbox that receives lead alerts (falls back to MAIL_FROM)
     CATALOGUE_BASE_URL  optional; defaults to <your-site>/catalogues
 */
 
 const crypto = require('crypto');
+const { connectLambda, getStore } = require('@netlify/blobs');
 const config = require('./catalogues.json');
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -92,33 +90,34 @@ function sendCatalogue(to, d) {
   });
 }
 
-/* ---------- Lead email (Brevo) ---------- */
+/* ---------- Lead list (Netlify Blobs) ---------- */
 
-async function leadEmail(subject, lines) {
-  const key = env('BREVO_API_KEY'), from = env('MAIL_FROM');
-  if (!key || !from) return;
-  const to = env('LEAD_EMAIL', from);
-  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-  const html = '<table cellpadding="6" style="font-family:Arial,sans-serif;font-size:14px">' +
-    lines.map(([k, v]) => `<tr><td style="color:#555">${esc(k)}</td><td><b>${esc(v)}</b></td></tr>`).join('') + '</table>';
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: { 'api-key': key, 'Content-Type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ sender: { email: from, name: 'Ronch WhatsApp Bot' }, to: [{ email: to }], subject, htmlContent: html })
-  });
-  if (!res.ok) console.error('Brevo', res.status, (await res.text()).slice(0, 300));
+// One record per visitor number; every event updates it.
+async function recordLead(from, name, patch) {
+  try {
+    const store = getStore('leads');
+    const key = 'wa-' + from;
+    const now = new Date().toISOString();
+    const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
+    if (name) lead.name = name;
+    lead.lastAt = now;
+    if (patch.catalogues) lead.catalogues = Array.from(new Set(lead.catalogues.concat(patch.catalogues)));
+    if (patch.message) lead.messages = lead.messages.concat([{ at: now, text: patch.message.slice(0, 500) }]).slice(-10);
+    if (patch.sales) lead.callBack = now;
+    if (patch.optOut) lead.optOut = now;
+    if (patch.failed) lead.lastError = { at: now, error: patch.failed.slice(0, 300) };
+    await store.setJSON(key, lead);
+  } catch (err) {
+    console.error('Lead save failed', from, err && err.message);
+  }
 }
 
-function istNow() {
-  return new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' });
-}
 
 /* ---------- Handling one incoming message ---------- */
 
 async function handleMessage(msg, contact) {
   const from = msg.from;                       // visitor's number, e.g. 919876543210
   const name = (contact && contact.profile && contact.profile.name) || '';
-  const who = [['Name (WhatsApp)', name || '-'], ['Mobile', '+' + from], ['Time', istNow()]];
 
   let choice = null;
   if (msg.type === 'interactive') {
@@ -128,7 +127,7 @@ async function handleMessage(msg, contact) {
     const t = ((msg.text && msg.text.body) || '').trim().toLowerCase();
     if (t === 'stop' || t === 'unsubscribe') {
       await sendText(from, 'Done. We will not send you further messages. Reply HI any time to get our catalogues again.');
-      await leadEmail(`Opt-out: +${from}`, [...who, ['Request', 'STOP - do not message this number']]);
+      await recordLead(from, name, { optOut: true });
       return;
     }
     if (/^[1-5]$/.test(t)) choice = 'cat:' + config.divisions[Number(t) - 1].id;
@@ -137,11 +136,12 @@ async function handleMessage(msg, contact) {
     else {
       // First contact or free text: show the menu, and pass any typed text to sales.
       await sendMenu(from, config.welcome);
-      await leadEmail(`WhatsApp lead: ${name || '+' + from}`, [...who, ['Message', msg.text.body.slice(0, 500)]]);
+      await recordLead(from, name, { message: msg.text.body });
       return;
     }
   } else {
     await sendMenu(from, config.welcome);
+    await recordLead(from, name, {});
     return;
   }
 
@@ -149,7 +149,7 @@ async function handleMessage(msg, contact) {
 
   if (choice === 'sales') {
     await sendText(from, config.salesReply);
-    await leadEmail(`Call back requested: ${name || '+' + from}`, [...who, ['Request', 'Talk to sales - please call']]);
+    await recordLead(from, name, { sales: true });
     return;
   }
 
@@ -159,8 +159,7 @@ async function handleMessage(msg, contact) {
     if (!list.length) return sendMenu(from, config.welcome);
     for (const d of list) await sendCatalogue(from, d);   // in order, so PDFs arrive in menu order
     await sendFollowUp(from);
-    await leadEmail(`Catalogue sent: ${list.map(d => d.title).join(', ')} - ${name || '+' + from}`,
-      [...who, ['Catalogue', list.map(d => d.title).join(', ')]]);
+    await recordLead(from, name, { catalogues: list.map(d => d.title) });
     return;
   }
 
@@ -195,6 +194,8 @@ exports.handler = async (event) => {
   const headers = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
   if (!validSignature(raw, headers['x-hub-signature-256'])) return { statusCode: 401, body: 'Bad signature' };
 
+  connectLambda(event);
+
   let data;
   try { data = JSON.parse(raw); } catch { return { statusCode: 400, body: 'Bad JSON' }; }
 
@@ -206,8 +207,7 @@ exports.handler = async (event) => {
       for (const s of v.statuses || []) {
         if (s.status === 'failed') {
           const err = (s.errors && s.errors[0]) || {};
-          jobs.push(leadEmail(`WhatsApp delivery failed to +${s.recipient_id}`,
-            [['Mobile', '+' + s.recipient_id], ['Error', `${err.code || ''} ${err.title || ''} ${(err.error_data && err.error_data.details) || ''}`.trim()], ['Time', istNow()]]));
+          jobs.push(recordLead(s.recipient_id, '', { failed: `Delivery failed: ${err.code || ''} ${err.title || ''} ${(err.error_data && err.error_data.details) || ''}`.trim() }));
         }
       }
       const contacts = v.contacts || [];
@@ -217,7 +217,7 @@ exports.handler = async (event) => {
         const contact = contacts.find(c => c.wa_id === msg.from) || contacts[0];
         jobs.push(handleMessage(msg, contact).catch(err => {
           console.error(err);
-          return leadEmail(`WhatsApp bot error for +${msg.from}`, [['Mobile', '+' + msg.from], ['Error', String(err.message || err)], ['Time', istNow()]]);
+          return recordLead(msg.from, '', { failed: 'Bot error: ' + String(err.message || err) });
         }));
       }
     }

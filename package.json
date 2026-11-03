@@ -1,0 +1,9 @@
+{
+  "name": "ronch-whatsapp-bot",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Ronch Excel WhatsApp catalogue bot",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
