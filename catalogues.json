@@ -1,0 +1,68 @@
+{
+  "company": "Ronch Excel Industries Pvt Ltd",
+  "website": "www.ronchexcel.com",
+  "welcome": "Welcome to Ronch Excel Industries! Thank you for visiting our stand.\n\nTap *View catalogues* and pick a division to receive its catalogue as a PDF here.",
+  "afterSend": "Hope this helps. Want another catalogue or a call from our team?",
+  "salesReply": "Thank you! Our sales team will call you shortly on this number. You can also reply here with your project details, quantity or site location.",
+  "divisions": [
+    {
+      "id": "facade",
+      "title": "Facade Lighting",
+      "description": "Linear, wall washers, pixel and flood lights",
+      "file": "Ronch Excel - Facade Light.pdf",
+      "filename": "Ronch Excel - Facade Lighting.pdf"
+    },
+    {
+      "id": "landscape",
+      "title": "Landscape Lighting",
+      "description": "Bollards, spike, underwater and garden lights",
+      "file": "Ronch Excel - Landscape Lighting.pdf",
+      "filename": "Ronch Excel - Landscape Lighting.pdf"
+    },
+    {
+      "id": "solar",
+      "title": "Solar Lighting",
+      "description": "Solar street, garden and area lights",
+      "file": "solar.pdf",
+      "filename": "Ronch Excel - Solar Lighting.pdf"
+    },
+    {
+      "id": "drivers",
+      "title": "LED Drivers (CV & CC)",
+      "description": "Constant voltage and constant current drivers",
+      "file": "led-drivers.pdf",
+      "filename": "Ronch Excel - LED Drivers CV & CC.pdf"
+    },
+    {
+      "id": "indoor",
+      "title": "Indoor Lighting",
+      "description": "Panels, downlights, profiles and track lights",
+      "file": "indoor.pdf",
+      "filename": "Ronch Excel - Indoor Lighting.pdf"
+    }
+  ],
+  "questions": [
+    {
+      "field": "fullName",
+      "ask": "To help our team assist you, a few quick questions.\n\n1/5 · What is your *name*?"
+    },
+    {
+      "field": "company",
+      "ask": "2/5 · Your *company* or firm name?"
+    },
+    {
+      "field": "designation",
+      "ask": "3/5 · Your *designation*? (e.g. Architect, Project Manager, Owner)"
+    },
+    {
+      "field": "city",
+      "ask": "4/5 · Which *city* are you based in?"
+    },
+    {
+      "field": "email",
+      "ask": "5/5 · Your *email* address? (we'll send product updates only)"
+    }
+  ],
+  "questionsDone": "Thank you! Our team will get in touch. Want another catalogue or a call?",
+  "badEmail": "That doesn't look like an email address. Please type it again, or tap Skip."
+}
