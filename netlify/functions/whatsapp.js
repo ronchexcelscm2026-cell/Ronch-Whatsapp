@@ -43,6 +43,7 @@ async function waSend(payload) {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`WhatsApp ${res.status}: ${text.slice(0, 300)}`);
+  console.log('Sent', payload.type, 'to', payload.to);
   return text;
 }
 
@@ -69,12 +70,12 @@ function sendMenu(to, body) {
   });
 }
 
-function sendFollowUp(to) {
+function sendFollowUp(to, text) {
   return waSend({
     to, type: 'interactive',
     interactive: {
       type: 'button',
-      body: { text: config.afterSend },
+      body: { text: text || config.afterSend },
       action: { buttons: [
         { type: 'reply', reply: { id: 'menu', title: 'More catalogues' } },
         { type: 'reply', reply: { id: 'sales', title: 'Talk to sales' } }
@@ -86,11 +87,25 @@ function sendFollowUp(to) {
 function sendCatalogue(to, d) {
   return waSend({
     to, type: 'document',
-    document: { link: `${siteBase()}/${d.file}`, filename: d.filename, caption: `${d.title} catalogue - ${config.company}` }
+    document: { link: `${siteBase()}/${encodeURIComponent(d.file)}`, filename: d.filename, caption: `${d.title} catalogue - ${config.company}` }
   });
 }
 
 /* ---------- Lead list (Netlify Blobs) ---------- */
+
+async function loadLead(from) {
+  try {
+    const now = new Date().toISOString();
+    return (await getStore('leads').get('wa-' + from, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
+  } catch (err) {
+    console.error('Lead load failed', from, err && err.message);
+    return { mobile: '+' + from, firstAt: new Date().toISOString(), catalogues: [], messages: [] };
+  }
+}
+async function saveLead(from, lead) {
+  try { await getStore('leads').setJSON('wa-' + from, lead); }
+  catch (err) { console.error('Lead save failed', from, err && err.message); }
+}
 
 // One record per visitor number; every event updates it.
 async function recordLead(from, name, patch) {
@@ -100,6 +115,7 @@ async function recordLead(from, name, patch) {
     const now = new Date().toISOString();
     const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
     if (name) lead.name = name;
+    if (patch.profile) Object.assign(lead, patch.profile);
     lead.lastAt = now;
     if (patch.catalogues) lead.catalogues = Array.from(new Set(lead.catalogues.concat(patch.catalogues)));
     if (patch.message) lead.messages = lead.messages.concat([{ at: now, text: patch.message.slice(0, 500) }]).slice(-10);
@@ -113,11 +129,86 @@ async function recordLead(from, name, patch) {
 }
 
 
+/* ---------- Visitor details questions ---------- */
+
+const QUESTIONS = config.questions || [];
+
+function sendQuestion(to, i) {
+  const q = QUESTIONS[i];
+  return waSend({
+    to, type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: q.ask },
+      action: { buttons: [
+        { type: 'reply', reply: { id: 'q:skip', title: 'Skip' } },
+        { type: 'reply', reply: { id: 'q:skipall', title: 'Skip all' } }
+      ] }
+    }
+  });
+}
+
+// Move to question index i, or finish. Returns nothing; saves state.
+async function goToQuestion(from, lead, i) {
+  if (i < QUESTIONS.length) {
+    lead.qStep = i;
+    await saveLead(from, lead);
+    await sendQuestion(from, i);
+  } else {
+    delete lead.qStep;
+    lead.detailsDone = new Date().toISOString();
+    await saveLead(from, lead);
+    await sendFollowUp(from, config.questionsDone);
+  }
+}
+
+// Handle a typed answer or a Skip tap while questions are running. Returns true if handled.
+async function handleAnswer(from, name, lead, text, button) {
+  if (typeof lead.qStep !== 'number' || !QUESTIONS[lead.qStep]) return false;
+  const i = lead.qStep;
+  if (name) lead.name = name;
+  lead.lastAt = new Date().toISOString();
+  if (button === 'q:skipall') return goToQuestion(from, lead, QUESTIONS.length).then(() => true);
+  if (button === 'q:skip') return goToQuestion(from, lead, i + 1).then(() => true);
+  if (text == null) return false;
+  let v = String(text).trim().slice(0, 120);
+  if (!v) return false;
+  const field = QUESTIONS[i].field;
+  if (field === 'email') {
+    v = v.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) { await sendQuestionText(from, config.badEmail, i); return true; }
+  }
+  lead[field] = v;
+  await goToQuestion(from, lead, i + 1);
+  return true;
+}
+
+function sendQuestionText(to, text, i) {
+  return waSend({
+    to, type: 'interactive',
+    interactive: { type: 'button', body: { text }, action: { buttons: [
+      { type: 'reply', reply: { id: 'q:skip', title: 'Skip' } },
+      { type: 'reply', reply: { id: 'q:skipall', title: 'Skip all' } }
+    ] } }
+  });
+}
+
 /* ---------- Handling one incoming message ---------- */
 
 async function handleMessage(msg, contact) {
   const from = msg.from;                       // visitor's number, e.g. 919876543210
   const name = (contact && contact.profile && contact.profile.name) || '';
+
+  // Answers to the details questions come first.
+  const lead = await loadLead(from);
+  if (typeof lead.qStep === 'number') {
+    const t0 = msg.type === 'text' ? ((msg.text && msg.text.body) || '') : null;
+    const b0 = msg.type === 'interactive' ? (((msg.interactive || {}).button_reply || {}).id || null) : null;
+    const isStop = t0 != null && /^(stop|unsubscribe)$/i.test(t0.trim());
+    if (!isStop && (t0 != null || (b0 && b0.startsWith('q:')))) {
+      if (await handleAnswer(from, name, lead, t0, b0)) return;
+    }
+  }
 
   let choice = null;
   if (msg.type === 'interactive') {
@@ -146,6 +237,7 @@ async function handleMessage(msg, contact) {
   }
 
   if (choice === 'menu') return sendMenu(from, 'Pick a division to receive its catalogue.');
+  if (choice && choice.startsWith('q:')) return sendMenu(from, config.welcome); // stale Skip tap
 
   if (choice === 'sales') {
     await sendText(from, config.salesReply);
@@ -158,8 +250,14 @@ async function handleMessage(msg, contact) {
     const list = id === 'all' ? config.divisions : config.divisions.filter(d => d.id === id);
     if (!list.length) return sendMenu(from, config.welcome);
     for (const d of list) await sendCatalogue(from, d);   // in order, so PDFs arrive in menu order
-    await sendFollowUp(from);
     await recordLead(from, name, { catalogues: list.map(d => d.title) });
+    const fresh = await loadLead(from);
+    if (!fresh.detailsDone && QUESTIONS.length) {
+      // first catalogue: ask for details (or re-ask the current question if they were mid-way)
+      await goToQuestion(from, fresh, typeof fresh.qStep === 'number' ? fresh.qStep : 0);
+    } else {
+      await sendFollowUp(from);
+    }
     return;
   }
 
@@ -183,6 +281,7 @@ exports.handler = async (event) => {
   // Meta's one-time webhook verification
   if (event.httpMethod === 'GET') {
     const q = event.queryStringParameters || {};
+    console.log('Webhook verification request from Meta');
     if (q['hub.mode'] === 'subscribe' && q['hub.verify_token'] && q['hub.verify_token'] === env('WA_VERIFY_TOKEN')) {
       return { statusCode: 200, body: q['hub.challenge'] || '' };
     }
@@ -192,7 +291,12 @@ exports.handler = async (event) => {
 
   const raw = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
   const headers = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
-  if (!validSignature(raw, headers['x-hub-signature-256'])) return { statusCode: 401, body: 'Bad signature' };
+  console.log('Webhook POST received, bytes:', raw.length);
+  if (!validSignature(raw, headers['x-hub-signature-256'])) {
+    console.error('REJECTED: signature does not match. WA_APP_SECRET in Netlify is not this app\'s App secret.');
+    return { statusCode: 401, body: 'Bad signature' };
+  }
+  if (!env('WA_TOKEN') || !env('WA_PHONE_NUMBER_ID')) console.error('WA_TOKEN or WA_PHONE_NUMBER_ID is missing in Netlify environment variables.');
 
   connectLambda(event);
 
@@ -210,6 +314,7 @@ exports.handler = async (event) => {
           jobs.push(recordLead(s.recipient_id, '', { failed: `Delivery failed: ${err.code || ''} ${err.title || ''} ${(err.error_data && err.error_data.details) || ''}`.trim() }));
         }
       }
+      console.log('Event:', change.field, '| messages:', (v.messages || []).length, '| statuses:', (v.statuses || []).map(s => s.status).join(',') || '-');
       const contacts = v.contacts || [];
       for (const msg of v.messages || []) {
         if (seen.has(msg.id)) continue;        // Meta sometimes delivers the same message twice

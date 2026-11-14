@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#01517E">
+<title>Ronch Stand Leads</title>
+<style>
+  :root { --blue:#01517E; --green:#36941E; --ink:#15232c; --muted:#5b6b75; --line:#d3dde3; --bg:#f2f5f7; --card:#fff;
+          --hot:#c45600; --hot-s:#fbe4d0; --warm:#8f6b00; --warm-s:#f5e9bf; --cold:#2b67b0; --cold-s:#dae7f6; --err:#b3261e; --fill:#e4f3df; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; color:var(--ink); background:var(--bg); -webkit-text-size-adjust:100%; }
+  header { position:sticky; top:0; z-index:5; background:var(--blue); color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  header b { font-size:18px; letter-spacing:.3px; } header b span { color:#9be07f; }
+  header small { opacity:.85; font-size:13px; }
+  main { max-width:620px; margin:0 auto; padding:14px 16px 120px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
+  h2 { margin:0 0 10px; font-size:17px; }
+  label { display:block; font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:12px 0 5px; }
+  input, select, textarea { width:100%; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--ink); min-height:46px; font-family:inherit; }
+  textarea { min-height:80px; resize:vertical; }
+  input:focus, select:focus, textarea:focus { outline:2px solid var(--blue); outline-offset:1px; }
+  .filled { background:var(--fill) !important; border-color:var(--green) !important; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:420px) { .row { grid-template-columns:1fr; } }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:0 16px; border-radius:10px; border:1px solid var(--line); background:#fff; color:var(--ink); font-size:16px; font-weight:bold; cursor:pointer; text-decoration:none; }
+  .btn.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .btn.green { background:var(--green); border-color:var(--green); color:#fff; }
+  .btn:disabled { opacity:.5; }
+  .scanbtn { width:100%; min-height:64px; font-size:18px; background:var(--green); border-color:var(--green); color:#fff; }
+  .thumbs { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .thumbs img { height:70px; border-radius:6px; border:1px solid var(--line); }
+  .status { margin-top:10px; padding:10px 12px; border-radius:8px; font-size:14px; background:#e3eef6; color:var(--blue); }
+  .status.err { background:#fde2e1; color:var(--err); }
+  .status.ok { background:var(--fill); color:#1f6b0e; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { min-height:42px; padding:0 14px; border-radius:999px; border:1px solid var(--line); background:#fff; font-size:15px; cursor:pointer; color:var(--ink); }
+  .chip[aria-pressed="true"] { background:#dcebf5; border-color:var(--blue); color:var(--blue); font-weight:bold; }
+  .chip[aria-pressed="true"]::before { content:"✓ "; }
+  .temps { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .temp { min-height:48px; border-radius:8px; border:1px solid var(--line); background:#fff; font-weight:bold; font-size:15px; cursor:pointer; }
+  .temp[data-t="hot"][aria-pressed="true"] { background:var(--hot-s); border-color:var(--hot); color:var(--hot); }
+  .temp[data-t="warm"][aria-pressed="true"] { background:var(--warm-s); border-color:var(--warm); color:var(--warm); }
+  .temp[data-t="cold"][aria-pressed="true"] { background:var(--cold-s); border-color:var(--cold); color:var(--cold); }
+  .consent { display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:15px; text-transform:none; letter-spacing:0; font-weight:normal; color:var(--ink); }
+  .consent input { width:24px; height:24px; min-height:0; flex:none; margin-top:1px; }
+  .bar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); z-index:5; }
+  .bar .in { max-width:620px; margin:0 auto; display:flex; gap:10px; }
+  .bar .btn { flex:1; }
+  .hidden { display:none !important; }
+  .login { max-width:420px; margin:40px auto; }
+  .muted { color:var(--muted); font-size:14px; }
+  .done-list { margin:8px 0 0; padding-left:20px; }
+  .tmp-note { font-size:13px; color:var(--muted); margin-top:6px; }
+</style>
+</head>
+<body>
+<header>
+  <div><b>RONCH <span>EXCEL</span></b><br><small>Stand leads · Acetech 2026</small></div>
+  <small id="who"></small>
+</header>
+
+<!-- LOGIN -->
+<main id="loginView" class="hidden">
+  <div class="card login">
+    <h2>Team sign in</h2>
+    <label for="lgKey">Team password</label>
+    <input id="lgKey" type="password" autocomplete="current-password">
+    <label for="lgName">Your name</label>
+    <input id="lgName" type="text" autocapitalize="words" placeholder="e.g. Rahul">
+    <div id="lgMsg" class="status err hidden"></div>
+    <div style="margin-top:14px"><button class="btn primary" id="lgBtn" style="width:100%">Start</button></div>
+  </div>
+</main>
+
+<!-- FORM -->
+<main id="formView" class="hidden">
+  <div class="card">
+    <h2>1 · Scan visiting card</h2>
+    <button class="btn scanbtn" id="scanFront">📷 Scan card (front)</button>
+    <input id="fileFront" type="file" accept="image/*" capture="environment" class="hidden">
+    <input id="fileBack" type="file" accept="image/*" capture="environment" class="hidden">
+    <div class="thumbs" id="thumbs"></div>
+    <div style="margin-top:10px" class="hidden" id="backRow"><button class="btn" id="scanBack">＋ Add back side</button></div>
+    <div id="scanMsg" class="status hidden"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Visitor details</h2>
+    <label for="f-name">Name *</label><input id="f-name" autocapitalize="words">
+    <div class="row">
+      <div><label for="f-mobile">Mobile (WhatsApp) *</label><input id="f-mobile" type="tel" inputmode="tel" placeholder="98xxxxxxxx"></div>
+      <div><label for="f-email">Email</label><input id="f-email" type="email" inputmode="email" autocapitalize="none"></div>
+    </div>
+    <div class="row">
+      <div><label for="f-company">Company</label><input id="f-company" autocapitalize="words"></div>
+      <div><label for="f-designation">Designation</label><input id="f-designation" autocapitalize="words"></div>
+    </div>
+    <div class="row">
+      <div><label for="f-city">City</label><input id="f-city" autocapitalize="words"></div>
+      <div><label for="f-type">Visitor type</label>
+        <select id="f-type"><option value="">Select</option><option>Architect</option><option>Lighting designer</option><option>Builder / developer</option><option>Contractor</option><option>Dealer / distributor</option><option>Consultant</option><option>Panel builder / OEM</option><option>End client</option><option>Other</option></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Interest</h2>
+    <label>Catalogues to send</label>
+    <div class="chips" id="interests"></div>
+    <div class="row">
+      <div><label for="f-ptype">Project type</label>
+        <select id="f-ptype"><option value="">Select</option><option>Residential</option><option>Commercial / office</option><option>Hospitality</option><option>Retail / showroom</option><option>Industrial</option><option>Infrastructure / public</option><option>Landscape / garden</option><option>Other</option></select></div>
+      <div><label for="f-timeline">Timeline</label>
+        <select id="f-timeline"><option value="">Not sure</option><option>Immediate</option><option>Within 1 month</option><option>1 to 3 months</option><option>3 to 6 months</option><option>6+ months</option><option>Just exploring</option></select></div>
+    </div>
+    <label for="f-qty">Quantity / size</label><input id="f-qty" placeholder="e.g. 400 m linear, 60 nos">
+    <label>Lead</label>
+    <div class="temps">
+      <button type="button" class="temp" data-t="hot" aria-pressed="false">Hot</button>
+      <button type="button" class="temp" data-t="warm" aria-pressed="true">Warm</button>
+      <button type="button" class="temp" data-t="cold" aria-pressed="false">Cold</button>
+    </div>
+    <label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Project, site, budget, next step"></textarea>
+    <label class="consent"><input type="checkbox" id="f-consent" checked><span>Visitor agreed to receive the catalogues on WhatsApp</span></label>
+    <div class="tmp-note" id="tmpNote"></div>
+    <div class="hidden" id="setupRow" style="margin-top:10px"><button class="btn" id="setupBtn">Set up automatic sending (one time)</button></div>
+  </div>
+
+  <div id="resultCard" class="card hidden"></div>
+</main>
+
+<div class="bar hidden" id="bar"><div class="in">
+  <button class="btn" id="clearBtn">Clear</button>
+  <button class="btn primary" id="submitBtn">Submit &amp; send</button>
+</div></div>
+
+<script>
+(function () {
+  'use strict';
+  var DIVS = [['facade','Facade Lighting'],['landscape','Landscape Lighting'],['solar','Solar Lighting'],['drivers','LED Drivers (CV & CC)'],['indoor','Indoor Lighting']];
+  var $ = function (s) { return document.querySelector(s); };
+  var S = { key: '', staff: '', imgs: [null, null], temp: 'warm', interests: new Set(), busy: false, scanCtl: 0 };
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  function show(el, on) { el.classList.toggle('hidden', !on); }
+  function msg(el, text, kind) { el.textContent = text; el.className = 'status' + (kind ? ' ' + kind : ''); show(el, !!text); }
+
+  async function api(path, body) {
+    var r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    var d = {}; try { d = await r.json(); } catch (e) {}
+    if (!r.ok || !d.ok) throw new Error(d.error || ('Error ' + r.status));
+    return d;
+  }
+
+  /* ---------- login ---------- */
+  function startForm() {
+    show($('#loginView'), false); show($('#formView'), true); show($('#bar'), true);
+    $('#who').textContent = S.staff ? 'Signed in: ' + S.staff : '';
+  }
+  async function login(key, staff, silent) {
+    try {
+      var d = await api('/.netlify/functions/team', { action: 'login', key: key });
+      S.key = key; S.staff = staff; ls('rt_key', key); ls('rt_staff', staff);
+      setTemplateNote(d.template); startForm();
+    } catch (e) {
+      if (silent) { show($('#loginView'), true); return; }
+      msg($('#lgMsg'), e.message, 'err');
+    }
+  }
+  function setTemplateNote(t) {
+    var s = t && t.status;
+    show($('#setupRow'), s === 'NOT_CREATED' || s === 'REJECTED');
+    $('#tmpNote').textContent = s === 'APPROVED' ? 'Catalogues go out automatically from +91 88662 73800.'
+      : 'Automatic WhatsApp sending is ' + (s === 'NOT_CREATED' ? 'not set up yet' : 'waiting for Meta approval') + ' — after Submit you\'ll get a one-tap WhatsApp button instead.';
+  }
+  $('#lgBtn').addEventListener('click', function () {
+    var k = $('#lgKey').value.trim(), n = $('#lgName').value.trim();
+    if (!k || !n) { msg($('#lgMsg'), 'Enter the team password and your name.', 'err'); return; }
+    login(k, n, false);
+  });
+
+  $('#setupBtn').addEventListener('click', async function () {
+    this.disabled = true; this.textContent = 'Setting up…';
+    try { var d = await api('/.netlify/functions/team', { action: 'setup', key: S.key }); setTemplateNote(d.template); $('#tmpNote').textContent += ' (status: ' + d.template.status + ')'; }
+    catch (e) { $('#tmpNote').textContent = 'Setup failed: ' + e.message; this.disabled = false; this.textContent = 'Set up automatic sending (one time)'; }
+  });
+
+  /* ---------- chips ---------- */
+  $('#interests').innerHTML = DIVS.map(function (d) { return '<button type="button" class="chip" data-id="' + d[0] + '" aria-pressed="false">' + d[1] + '</button>'; }).join('');
+  $('#interests').addEventListener('click', function (e) {
+    var b = e.target.closest('.chip'); if (!b) return;
+    var on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on);
+    if (on) S.interests.add(b.dataset.id); else S.interests.delete(b.dataset.id);
+  });
+  document.querySelectorAll('.temp').forEach(function (b) {
+    b.addEventListener('click', function () { S.temp = b.dataset.t; document.querySelectorAll('.temp').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); });
+  });
+
+  /* ---------- card scan ---------- */
+  function shrink(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var max = 1400, sc = Math.min(1, max / Math.max(img.width, img.height));
+        var c = document.createElement('canvas'); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        res(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('bad image')); };
+      img.src = url;
+    });
+  }
+  function renderThumbs() { $('#thumbs').innerHTML = S.imgs.filter(Boolean).map(function (s) { return '<img src="' + s + '" alt="Visiting card">'; }).join(''); }
+  var MAP = { name: '#f-name', company: '#f-company', designation: '#f-designation', mobile: '#f-mobile', email: '#f-email', city: '#f-city' };
+  S.extra = {};
+  async function scan(force) {
+    var imgs = S.imgs.filter(Boolean); if (!imgs.length) return;
+    var my = ++S.scanCtl, t0 = Date.now();
+    msg($('#scanMsg'), 'Reading the card…');
+    var timer = setInterval(function () { if (my === S.scanCtl) msg($('#scanMsg'), 'Reading the card… ' + Math.round((Date.now() - t0) / 1000) + ' s'); }, 1000);
+    try {
+      var d = await api('/.netlify/functions/scan', { key: S.key, images: imgs });
+      clearInterval(timer); if (my !== S.scanCtl) return;
+      var f = d.fields || {}, n = 0;
+      Object.keys(MAP).forEach(function (k) {
+        var v = (f[k] || '').trim(), el = $(MAP[k]);
+        if (!v) return; if (el.value.trim() && !force) return;
+        el.value = v; el.classList.add('filled'); n++;
+      });
+      if (!$('#f-mobile').value.trim() && f.otherPhones) { $('#f-mobile').value = f.otherPhones.split(',')[0].trim(); $('#f-mobile').classList.add('filled'); n++; }
+      S.extra = { otherPhones: f.otherPhones || '', address: f.address || '', website: f.website || '' };
+      msg($('#scanMsg'), n ? 'Filled ' + n + ' fields (green). Please check them.' : 'Could not read details. Retake the photo closer, in good light, or type them.', n ? 'ok' : 'err');
+    } catch (e) {
+      clearInterval(timer); if (my !== S.scanCtl) return;
+      msg($('#scanMsg'), e.message + ' You can type the details instead.', 'err');
+    }
+  }
+  $('#scanFront').addEventListener('click', function () { $('#fileFront').click(); });
+  $('#scanBack').addEventListener('click', function () { $('#fileBack').click(); });
+  $('#fileFront').addEventListener('change', async function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    try { S.imgs = [await shrink(f), null]; } catch (err) { msg($('#scanMsg'), 'That photo could not be used. Try again.', 'err'); return; }
+    renderThumbs(); show($('#backRow'), true); $('#scanFront').textContent = '📷 Retake card (front)'; e.target.value = ''; scan(false);
+  });
+  $('#fileBack').addEventListener('change', async function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    try { S.imgs[1] = await shrink(f); } catch (err) { return; }
+    renderThumbs(); show($('#backRow'), false); e.target.value = ''; scan(true);
+  });
+  document.addEventListener('input', function (e) { if (e.target.classList && e.target.classList.contains('filled')) e.target.classList.remove('filled'); });
+
+  /* ---------- submit ---------- */
+  function resetForm() {
+    S.scanCtl++; S.imgs = [null, null]; S.extra = {}; S.interests.clear(); S.temp = 'warm';
+    ['#f-name','#f-mobile','#f-email','#f-company','#f-designation','#f-city','#f-qty','#f-notes'].forEach(function (s) { $(s).value = ''; $(s).classList.remove('filled'); });
+    ['#f-type','#f-ptype','#f-timeline'].forEach(function (s) { $(s).value = ''; });
+    $('#f-consent').checked = true;
+    document.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', 'false'); });
+    document.querySelectorAll('.temp').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.t === 'warm'); });
+    renderThumbs(); show($('#backRow'), false); msg($('#scanMsg'), ''); $('#scanFront').textContent = '📷 Scan card (front)';
+    show($('#resultCard'), false); window.scrollTo(0, 0);
+  }
+  $('#clearBtn').addEventListener('click', resetForm);
+  $('#submitBtn').addEventListener('click', async function () {
+    if (S.busy) return;
+    var name = $('#f-name').value.trim(), mob = $('#f-mobile').value.trim();
+    var rc = $('#resultCard');
+    if (!name || !mob) { rc.innerHTML = '<div class="status err">Enter at least the name and mobile number.</div>'; show(rc, true); rc.scrollIntoView({ behavior: 'smooth' }); return; }
+    if ($('#f-consent').checked && !S.interests.size) { rc.innerHTML = '<div class="status err">Tick at least one catalogue to send (or untick the WhatsApp box).</div>'; show(rc, true); rc.scrollIntoView({ behavior: 'smooth' }); return; }
+    S.busy = true; $('#submitBtn').disabled = true; $('#submitBtn').textContent = 'Saving…';
+    try {
+      var d = await api('/.netlify/functions/team', {
+        action: 'submit', key: S.key, staff: S.staff, consent: $('#f-consent').checked,
+        lead: {
+          name: name, mobile: mob, email: $('#f-email').value, company: $('#f-company').value, designation: $('#f-designation').value,
+          city: $('#f-city').value, visitorType: $('#f-type').value, projectType: $('#f-ptype').value, timeline: $('#f-timeline').value,
+          qty: $('#f-qty').value, notes: $('#f-notes').value, temp: S.temp, interests: Array.from(S.interests),
+          otherPhones: S.extra.otherPhones, address: S.extra.address, website: S.extra.website
+        }
+      });
+      var html = '<h2>✅ Saved: ' + name.replace(/[<>&]/g, '') + '</h2>';
+      if (d.sent && d.sent.length) {
+        html += '<ul class="done-list">' + d.sent.map(function (x) { return '<li>' + x.title + (x.ok ? ' — sent on WhatsApp' : ' — <b>not sent</b>') + '</li>'; }).join('') + '</ul>';
+      }
+      if (d.note) html += '<p class="muted">' + d.note + '</p>';
+      if (d.waLink) html += '<p><a class="btn green" target="_blank" rel="noopener" href="' + d.waLink + '">Send catalogues from this phone (WhatsApp)</a></p>';
+      html += '<p><button class="btn primary" id="nextBtn" style="width:100%">Next visitor</button></p>';
+      rc.innerHTML = html; show(rc, true); rc.scrollIntoView({ behavior: 'smooth' });
+      $('#nextBtn').addEventListener('click', resetForm);
+    } catch (e) {
+      rc.innerHTML = '<div class="status err">Not saved: ' + e.message + '. Check the network and try again.</div>'; show(rc, true);
+    } finally {
+      S.busy = false; $('#submitBtn').disabled = false; $('#submitBtn').textContent = 'Submit & send';
+    }
+  });
+
+  /* ---------- start ---------- */
+  var k = ls('rt_key'), n = ls('rt_staff');
+  if (n) $('#lgName').value = n;
+  if (k && n) login(k, n, true); else show($('#loginView'), true);
+})();
+</script>
+</body>
+</html>

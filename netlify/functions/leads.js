@@ -36,7 +36,7 @@ function page(body) {
   th,td{text-align:left;padding:10px;border-bottom:1px solid #e6ecef;vertical-align:top}
   th{background:#eaf1f5;white-space:nowrap}
   .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:bold}
-  .call{background:#fbe4d0;color:#a34700}.stop{background:#eee;color:#555}.err{background:#fde2e1;color:#b3261e}
+  .call{background:#fbe4d0;color:#a34700}.src{background:#e3eef6;color:#01517E}.t-hot{background:#fbe4d0;color:#c45600}.t-warm{background:#f5e9bf;color:#8f6b00}.t-cold{background:#dae7f6;color:#2b67b0}.stop{background:#eee;color:#555}.err{background:#fde2e1;color:#b3261e}
   a{color:#01517E}
   .err-box{color:#b3261e;margin-top:8px}
 </style></head><body><main>${body}</main></body></html>`;
@@ -61,8 +61,8 @@ function csv(leads) {
     if (/^[=@]/.test(s) || (/^[+\-]/.test(s) && !/^\+?[\d\s]+$/.test(s))) s = "'" + s;
     return '"' + s.replace(/"/g, '""') + '"';
   };
-  const head = ['Name (WhatsApp)', 'Mobile', 'Catalogues sent', 'Call back requested', 'Messages', 'First contact', 'Last contact', 'Opted out', 'Last error'];
-  const rows = leads.map(l => [l.name, l.mobile, (l.catalogues || []).join('; '), l.callBack ? ist(l.callBack) : '',
+  const head = ['Name', 'WhatsApp name', 'Company', 'Designation', 'City', 'Email', 'Mobile', 'Source', 'Staff', 'Temperature', 'Visitor type', 'Interested in', 'Project type', 'Quantity', 'Timeline', 'Notes', 'Other phones', 'Address', 'Website', 'Catalogues sent', 'Call back requested', 'Messages', 'First contact', 'Last contact', 'Opted out', 'Last error'];
+  const rows = leads.map(l => [l.fullName, l.name, l.company, l.designation, l.city, l.email, l.mobile, l.source || 'WhatsApp QR', l.staff, l.temp, l.visitorType, (l.interests || []).join('; '), l.projectType, l.qty, l.timeline, l.notes, l.otherPhones, l.address, l.website, (l.catalogues || []).join('; '), l.callBack ? ist(l.callBack) : '',
     (l.messages || []).map(m => m.text).join(' | '), ist(l.firstAt), ist(l.lastAt), l.optOut ? ist(l.optOut) : '',
     l.lastError ? l.lastError.error : ''].map(cell).join(','));
   return '﻿' + [head.map(cell).join(',')].concat(rows).join('\r\n');
@@ -72,18 +72,22 @@ function table(leads, key) {
   const calls = leads.filter(l => l.callBack && !l.optOut).length;
   const rows = leads.map(l => {
     const digits = String(l.mobile || '').replace(/\D/g, '');
-    const tags = (l.callBack ? '<span class="tag call">Call back</span> ' : '') + (l.optOut ? '<span class="tag stop">Opted out</span> ' : '') + (l.lastError ? `<span class="tag err" title="${esc(l.lastError.error)}">Send failed</span>` : '');
-    return `<tr><td><b>${esc(l.name || '-')}</b><br>${tags}</td>
+    const tempTag = l.temp ? `<span class="tag t-${esc(l.temp)}">${esc(l.temp.charAt(0).toUpperCase() + l.temp.slice(1))}</span> ` : '';
+    const srcTag = `<span class="tag src">${esc(l.source || 'WhatsApp QR')}${l.staff ? ' · ' + esc(l.staff) : ''}</span> `;
+    const tags = srcTag + tempTag + (l.callBack ? '<span class="tag call">Call back</span> ' : '') + (l.optOut ? '<span class="tag stop">Opted out</span> ' : '') + (l.lastError ? `<span class="tag err" title="${esc(l.lastError.error)}">Send failed</span>` : '');
+    const who = [l.designation, l.company].filter(Boolean).join(', ');
+    const extra = [esc(who), esc(l.city), l.email ? `<a href="mailto:${esc(l.email)}">${esc(l.email)}</a>` : ''].filter(Boolean);
+    return `<tr><td><b>${esc(l.fullName || l.name || '-')}</b>${l.fullName && l.name && l.fullName !== l.name ? `<br><span style="color:#5b6b75">WhatsApp: ${esc(l.name)}</span>` : ''}<br>${extra.join('<br>')}${extra.length ? '<br>' : ''}${tags}</td>
 <td><a href="tel:+${digits}">${esc(l.mobile)}</a><br><a href="https://wa.me/${digits}" target="_blank" rel="noopener">WhatsApp</a></td>
 <td>${esc((l.catalogues || []).join(', '))}</td>
-<td>${(l.messages || []).map(m => esc(m.text)).join('<br>')}</td>
+<td>${[(l.interests && l.interests.length ? '<b>Interested:</b> ' + esc(l.interests.join(', ')) : ''), (l.notes ? '<b>Notes:</b> ' + esc(l.notes) : ''), ...(l.messages || []).map(m => esc(m.text))].filter(Boolean).join('<br>')}</td>
 <td>${esc(ist(l.lastAt))}<br><span style="color:#5b6b75">first ${esc(ist(l.firstAt))}</span></td></tr>`;
   }).join('');
   return page(`<h1>WhatsApp Leads</h1>
 <div class="sub">${leads.length} visitors · ${calls} waiting for a call back · times in IST</div>
 <form method="post" class="inline"><input type="hidden" name="key" value="${esc(key)}"><button type="submit">Refresh</button></form>
 <form method="post" class="inline"><input type="hidden" name="key" value="${esc(key)}"><input type="hidden" name="format" value="csv"><button type="submit" class="alt">Download CSV (Excel)</button></form>
-<div class="wrap" style="margin-top:14px"><table><thead><tr><th>Visitor</th><th>Mobile</th><th>Catalogues sent</th><th>Their messages</th><th>Last contact</th></tr></thead>
+<div class="wrap" style="margin-top:14px"><table><thead><tr><th>Visitor</th><th>Mobile</th><th>Catalogues sent</th><th>Notes / messages</th><th>Last contact</th></tr></thead>
 <tbody>${rows || '<tr><td colspan="5">No leads yet. They appear here as soon as someone messages the bot.</td></tr>'}</tbody></table></div>`);
 }
 

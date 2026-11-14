@@ -49,3 +49,9 @@
   from = "/c/indoor"
   to = "/catalogues/Indoor.pdf"
   status = 302
+
+# Stand team page
+[[redirects]]
+  from = "/team"
+  to = "/team.html"
+  status = 200

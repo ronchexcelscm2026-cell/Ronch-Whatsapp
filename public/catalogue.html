@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ronch Excel Catalogues</title>
+<style>
+  :root { --blue:#01517E; --green:#36941E; --ink:#1b2a33; --muted:#5b6b75; --line:#d7e0e5; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family: Arial, Helvetica, sans-serif; color:var(--ink); background:#f3f6f8; }
+  main { max-width:520px; margin:0 auto; padding:28px 16px 40px; }
+  .brand { text-align:center; font-size:28px; font-weight:bold; color:var(--blue); letter-spacing:.5px; }
+  .brand span { color:var(--green); }
+  .sub { text-align:center; color:var(--muted); margin:6px 0 22px; font-size:15px; }
+  a.cat { display:flex; align-items:center; justify-content:space-between; gap:12px; background:#fff; border:1px solid var(--line);
+          border-radius:12px; padding:16px; margin-bottom:12px; text-decoration:none; color:var(--ink); min-height:64px; }
+  a.cat b { display:block; font-size:17px; }
+  a.cat small { color:var(--muted); font-size:13px; }
+  a.cat .go { flex:none; background:var(--blue); color:#fff; border-radius:8px; padding:9px 14px; font-weight:bold; font-size:14px; }
+  a.cat[hidden] { display:none; }
+  .foot { text-align:center; color:var(--muted); font-size:14px; margin-top:22px; line-height:1.6; }
+  .foot a { color:var(--blue); }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">RONCH <span>EXCEL</span></div>
+  <p class="sub">Tap a division to open its catalogue (PDF).</p>
+
+  <a class="cat" data-pdf="/catalogues/Facade.pdf" href="/catalogues/Facade.pdf"><span><b>Facade Lighting</b><small>Linear, wall washers, pixel and flood lights</small></span><span class="go">Open</span></a>
+  <a class="cat" data-pdf="/catalogues/Landscape.pdf" href="/catalogues/Landscape.pdf"><span><b>Landscape Lighting</b><small>Bollards, spike, underwater and garden lights</small></span><span class="go">Open</span></a>
+  <a class="cat" data-pdf="/catalogues/Solar.pdf" href="/catalogues/Solar.pdf"><span><b>Solar Lighting</b><small>Solar street, garden and area lights</small></span><span class="go">Open</span></a>
+  <a class="cat" data-pdf="/catalogues/LED-Drivers.pdf" href="/catalogues/LED-Drivers.pdf"><span><b>LED Drivers (CV &amp; CC)</b><small>Constant voltage and constant current drivers</small></span><span class="go">Open</span></a>
+  <a class="cat" data-pdf="/catalogues/Indoor.pdf" href="/catalogues/Indoor.pdf"><span><b>Indoor Lighting</b><small>Panels, downlights, profiles and track lights</small></span><span class="go">Open</span></a>
+
+  <p class="foot">Ronch Excel Industries Pvt Ltd · Manufactured in-house at Daman<br>
+  <a href="https://www.ronchexcel.com">www.ronchexcel.com</a></p>
+</main>
+<script>
+  // Hide any division whose PDF has not been uploaded yet.
+  document.querySelectorAll('a.cat').forEach(function (a) {
+    fetch(a.dataset.pdf, { method: 'HEAD' }).then(function (r) { if (!r.ok) a.hidden = true; }).catch(function () {});
+  });
+</script>
+</body>
+</html>
