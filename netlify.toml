@@ -18,3 +18,34 @@
   from = "/leads"
   to = "/.netlify/functions/leads"
   status = 200
+
+# Short catalogue links for the WhatsApp greeting message
+[[redirects]]
+  from = "/c"
+  to = "/catalogue.html"
+  status = 200
+
+[[redirects]]
+  from = "/c/facade"
+  to = "/catalogues/Facade.pdf"
+  status = 302
+
+[[redirects]]
+  from = "/c/landscape"
+  to = "/catalogues/Landscape.pdf"
+  status = 302
+
+[[redirects]]
+  from = "/c/solar"
+  to = "/catalogues/Solar.pdf"
+  status = 302
+
+[[redirects]]
+  from = "/c/drivers"
+  to = "/catalogues/LED-Drivers.pdf"
+  status = 302
+
+[[redirects]]
+  from = "/c/indoor"
+  to = "/catalogues/Indoor.pdf"
+  status = 302
