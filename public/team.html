@@ -134,12 +134,11 @@
     <h2>3 · Interest</h2>
     <label>Catalogues to send</label>
     <div class="chips" id="interests"></div>
-    <div class="row">
-      <div><label for="f-ptype">Project type</label>
-        <select id="f-ptype"><option value="">Select</option><option>Residential</option><option>Commercial / office</option><option>Hospitality</option><option>Retail / showroom</option><option>Industrial</option><option>Infrastructure / public</option><option>Landscape / garden</option><option>Other</option></select></div>
-      <div><label for="f-timeline">Timeline</label>
-        <select id="f-timeline"><option value="">Not sure</option><option>Immediate</option><option>Within 1 month</option><option>1 to 3 months</option><option>3 to 6 months</option><option>6+ months</option><option>Just exploring</option></select></div>
-    </div>
+    <label>Project types <span style="text-transform:none;font-weight:normal">(tap all that apply)</span></label>
+    <div class="chips" id="ptypes"></div>
+    <input id="f-ptype-other" class="hidden" placeholder="Other project type" style="margin-top:8px">
+    <label for="f-timeline">Timeline</label>
+    <select id="f-timeline"><option value="">Not sure</option><option>Immediate</option><option>Within 1 month</option><option>1 to 3 months</option><option>3 to 6 months</option><option>6+ months</option><option>Just exploring</option></select>
     <label for="f-qty">Quantity / size</label><input id="f-qty" placeholder="e.g. 400 m linear, 60 nos">
     <label>Lead</label>
     <div class="temps">
@@ -244,6 +243,20 @@
     var on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on);
     if (on) S.interests.add(b.dataset.id); else S.interests.delete(b.dataset.id);
   });
+  var PTYPES = ['Residential', 'Villa / bungalow', 'Commercial / office', 'Hospitality / hotel', 'Retail / showroom', 'Hospital / institution', 'Religious / heritage', 'Industrial', 'Infrastructure / bridge', 'Public / government', 'Landscape / garden', 'Other'];
+  var PT = new Set();
+  $('#ptypes').innerHTML = PTYPES.map(function (t) { return '<button type="button" class="chip" data-pt="' + t + '" aria-pressed="false">' + t + '</button>'; }).join('');
+  $('#ptypes').addEventListener('click', function (e) {
+    var b = e.target.closest('.chip'); if (!b) return;
+    var on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', on);
+    if (on) PT.add(b.dataset.pt); else PT.delete(b.dataset.pt);
+    show($('#f-ptype-other'), PT.has('Other')); if (on && b.dataset.pt === 'Other') $('#f-ptype-other').focus();
+  });
+  function projectTypes() {
+    return PTYPES.filter(function (t) { return PT.has(t); }).map(function (t) {
+      var o = $('#f-ptype-other').value.trim(); return t === 'Other' && o ? 'Other: ' + o : t;
+    }).join(', ');
+  }
   document.querySelectorAll('.temp').forEach(function (b) {
     b.addEventListener('click', function () { S.temp = b.dataset.t; document.querySelectorAll('.temp').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); });
   });
@@ -304,9 +317,9 @@
 
   /* ---------- submit ---------- */
   function resetForm() {
-    S.scanCtl++; S.imgs = [null, null]; S.extra = {}; S.interests.clear(); S.temp = 'warm';
+    S.scanCtl++; S.imgs = [null, null]; S.extra = {}; S.interests.clear(); PT.clear(); show($('#f-ptype-other'), false); S.temp = 'warm';
     ['#f-name','#f-mobile','#f-email','#f-company','#f-designation','#f-city','#f-qty','#f-notes'].forEach(function (s) { $(s).value = ''; $(s).classList.remove('filled'); });
-    ['#f-type','#f-ptype','#f-timeline'].forEach(function (s) { $(s).value = ''; });
+    ['#f-type','#f-timeline','#f-ptype-other'].forEach(function (s) { $(s).value = ''; });
     $('#f-consent').checked = true;
     document.querySelectorAll('.chip').forEach(function (c) { c.setAttribute('aria-pressed', 'false'); });
     document.querySelectorAll('.temp').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.t === 'warm'); });
@@ -326,7 +339,7 @@
         action: 'submit', key: S.key, staff: S.staff, consent: $('#f-consent').checked,
         lead: {
           name: name, mobile: mob, email: $('#f-email').value, company: $('#f-company').value, designation: $('#f-designation').value,
-          city: $('#f-city').value, visitorType: $('#f-type').value, projectType: $('#f-ptype').value, timeline: $('#f-timeline').value,
+          city: $('#f-city').value, visitorType: $('#f-type').value, projectType: projectTypes(), timeline: $('#f-timeline').value,
           qty: $('#f-qty').value, notes: $('#f-notes').value, temp: S.temp, interests: Array.from(S.interests),
           otherPhones: S.extra.otherPhones, address: S.extra.address, website: S.extra.website
         }
