@@ -184,6 +184,22 @@ async function submit(body) {
   return json(200, result);
 }
 
+async function listLeads() {
+  const store = getStore('leads');
+  const { blobs } = await store.list();
+  const all = await Promise.all(blobs.map(x => store.get(x.key, { type: 'json' })));
+  const pick = l => ({
+    name: l.fullName || l.name || '', waName: l.name || '', mobile: l.mobile || '', company: l.company || '', designation: l.designation || '',
+    city: l.city || '', email: l.email || '', source: l.source || 'WhatsApp QR', staff: l.staff || '', temp: l.temp || '',
+    visitorType: l.visitorType || '', projectType: l.projectType || '', qty: l.qty || '', timeline: l.timeline || '',
+    interests: l.interests || [], catalogues: l.catalogues || [], notes: l.notes || '',
+    messages: (l.messages || []).map(m => m.text).slice(-5), callBack: !!l.callBack, optOut: !!l.optOut,
+    error: l.lastError ? l.lastError.error : '', firstAt: l.firstAt || '', lastAt: l.lastAt || ''
+  });
+  const leads = all.filter(Boolean).map(pick).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+  return json(200, { ok: true, leads });
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return json(405, { ok: false, error: 'Method not allowed' });
   let body;
@@ -196,6 +212,7 @@ exports.handler = async (event) => {
     if (body.action === 'status') return json(200, { ok: true, template: await templateStatus() });
     if (body.action === 'setup') return json(200, { ok: true, template: await setupTemplate() });
     if (body.action === 'submit') return await submit(body);
+    if (body.action === 'list') return await listLeads();
     return json(400, { ok: false, error: 'Unknown action' });
   } catch (err) {
     console.error('team error', err);

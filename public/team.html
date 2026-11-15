@@ -14,7 +14,7 @@
   header { position:sticky; top:0; z-index:5; background:var(--blue); color:#fff; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
   header b { font-size:18px; letter-spacing:.3px; } header b span { color:#9be07f; }
   header small { opacity:.85; font-size:13px; }
-  main { max-width:620px; margin:0 auto; padding:14px 16px 120px; }
+  main { max-width:620px; margin:0 auto; padding:14px 16px 170px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:14px; }
   h2 { margin:0 0 10px; font-size:17px; }
   label { display:block; font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:12px 0 5px; }
@@ -45,7 +45,33 @@
   .temp[data-t="cold"][aria-pressed="true"] { background:var(--cold-s); border-color:var(--cold); color:var(--cold); }
   .consent { display:flex; gap:10px; align-items:flex-start; margin-top:14px; font-size:15px; text-transform:none; letter-spacing:0; font-weight:normal; color:var(--ink); }
   .consent input { width:24px; height:24px; min-height:0; flex:none; margin-top:1px; }
-  .bar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); z-index:5; }
+  .bar { position:fixed; left:0; right:0; bottom:calc(62px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid var(--line); padding:10px 16px; z-index:5; }
+  .tabs { position:fixed; left:0; right:0; bottom:0; z-index:6; background:#fff; border-top:1px solid var(--line); padding-bottom:env(safe-area-inset-bottom); }
+  .tabs .in { max-width:620px; margin:0 auto; display:grid; grid-template-columns:1fr 1fr; }
+  .tab { min-height:62px; background:none; border:0; font-size:14px; font-weight:bold; color:var(--muted); cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
+  .tab span { font-size:22px; line-height:1; }
+  .tab[aria-selected="true"] { color:var(--blue); box-shadow:inset 0 3px 0 var(--blue); }
+  .tab .count { font-size:11px; background:var(--blue); color:#fff; border-radius:999px; padding:1px 7px; margin-left:4px; }
+  .tools { display:grid; gap:10px; margin-bottom:12px; }
+  .tools .line { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .tools .line .btn { min-height:42px; padding:0 12px; font-size:14px; }
+  .fchip { min-height:38px; padding:0 12px; border-radius:999px; border:1px solid var(--line); background:#fff; font-size:14px; cursor:pointer; color:var(--ink); }
+  .fchip[aria-pressed="true"] { background:var(--blue); border-color:var(--blue); color:#fff; }
+  .stats { font-size:13px; color:var(--muted); margin:2px 0 10px; }
+  .lead { background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .lead .top { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; cursor:pointer; }
+  .lead .nm { font-weight:bold; font-size:16px; }
+  .lead .sub { color:var(--muted); font-size:14px; margin-top:2px; }
+  .lead .when { color:var(--muted); font-size:12px; white-space:nowrap; text-align:right; }
+  .tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+  .tg { font-size:12px; font-weight:bold; padding:3px 8px; border-radius:999px; background:#eef2f5; color:var(--ink); }
+  .tg.hot { background:var(--hot-s); color:var(--hot); } .tg.warm { background:var(--warm-s); color:var(--warm); } .tg.cold { background:var(--cold-s); color:var(--cold); }
+  .tg.src { background:#e3eef6; color:var(--blue); } .tg.call { background:#fbe4d0; color:#a34700; } .tg.err { background:#fde2e1; color:var(--err); }
+  .lead .more { margin-top:10px; font-size:14px; line-height:1.55; border-top:1px dashed var(--line); padding-top:8px; }
+  .lead .more b { color:var(--muted); font-weight:bold; }
+  .lead .acts { display:flex; gap:8px; margin-top:10px; }
+  .lead .acts .btn { flex:1; min-height:42px; font-size:14px; }
+  .empty { text-align:center; color:var(--muted); padding:30px 10px; }
   .bar .in { max-width:620px; margin:0 auto; display:flex; gap:10px; }
   .bar .btn { flex:1; }
   .hidden { display:none !important; }
@@ -130,6 +156,32 @@
   <div id="resultCard" class="card hidden"></div>
 </main>
 
+<!-- LEADS -->
+<main id="leadsView" class="hidden">
+  <div class="tools">
+    <input id="q" type="search" placeholder="Search name, company, mobile, city">
+    <div class="line" id="tempF">
+      <button class="fchip" data-f="all" aria-pressed="true">All</button>
+      <button class="fchip" data-f="hot" aria-pressed="false">Hot</button>
+      <button class="fchip" data-f="warm" aria-pressed="false">Warm</button>
+      <button class="fchip" data-f="cold" aria-pressed="false">Cold</button>
+      <button class="fchip" data-f="call" aria-pressed="false">Call back</button>
+    </div>
+    <div class="line">
+      <select id="srcF" style="flex:1;min-width:140px"><option value="all">All sources</option><option value="Stand team">Stand team</option><option value="WhatsApp QR">WhatsApp QR</option><option value="mine">Only mine</option></select>
+      <button class="btn" id="refreshBtn">↻ Refresh</button>
+      <button class="btn" id="csvBtn">⬇ CSV</button>
+    </div>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div id="leadList"></div>
+</main>
+
+<nav class="tabs hidden" id="tabs"><div class="in" role="tablist">
+  <button class="tab" role="tab" data-tab="scan" aria-selected="true"><span>📷</span>Card Scan</button>
+  <button class="tab" role="tab" data-tab="leads" aria-selected="false"><span>📋</span><div>Leads<b class="count hidden" id="leadCount"></b></div></button>
+</div></nav>
+
 <div class="bar hidden" id="bar"><div class="in">
   <button class="btn" id="clearBtn">Clear</button>
   <button class="btn primary" id="submitBtn">Submit &amp; send</button>
@@ -154,7 +206,7 @@
 
   /* ---------- login ---------- */
   function startForm() {
-    show($('#loginView'), false); show($('#formView'), true); show($('#bar'), true);
+    show($('#loginView'), false); show($('#tabs'), true); setTab(ls('rt_tab') || 'scan');
     $('#who').textContent = S.staff ? 'Signed in: ' + S.staff : '';
   }
   async function login(key, staff, silent) {
@@ -288,11 +340,85 @@
       html += '<p><button class="btn primary" id="nextBtn" style="width:100%">Next visitor</button></p>';
       rc.innerHTML = html; show(rc, true); rc.scrollIntoView({ behavior: 'smooth' });
       $('#nextBtn').addEventListener('click', resetForm);
+      api('/.netlify/functions/team', { action: 'list', key: S.key }).then(function (d) { L.all = d.leads || []; var c = $('#leadCount'); c.textContent = L.all.length; show(c, L.all.length > 0); }).catch(function () {});
     } catch (e) {
       rc.innerHTML = '<div class="status err">Not saved: ' + e.message + '. Check the network and try again.</div>'; show(rc, true);
     } finally {
       S.busy = false; $('#submitBtn').disabled = false; $('#submitBtn').textContent = 'Submit & send';
     }
+  });
+
+  /* ---------- tabs ---------- */
+  function setTab(t) {
+    ls('rt_tab', t);
+    document.querySelectorAll('.tab').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === t); });
+    show($('#formView'), t === 'scan'); show($('#bar'), t === 'scan'); show($('#leadsView'), t === 'leads');
+    window.scrollTo(0, 0);
+    if (t === 'leads') loadLeads();
+  }
+  document.querySelectorAll('.tab').forEach(function (b) { b.addEventListener('click', function () { setTab(b.dataset.tab); }); });
+
+  /* ---------- leads ---------- */
+  var L = { all: [], temp: 'all', open: {} };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  function when(iso) { return iso ? new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : ''; }
+  async function loadLeads() {
+    $('#stats').textContent = 'Loading…';
+    try { var d = await api('/.netlify/functions/team', { action: 'list', key: S.key }); L.all = d.leads || []; renderLeads(); }
+    catch (e) { $('#stats').textContent = 'Could not load leads: ' + e.message; }
+  }
+  function filtered() {
+    var q = $('#q').value.trim().toLowerCase(), src = $('#srcF').value, qd = q.replace(/\D/g, '');
+    return L.all.filter(function (l) {
+      if (L.temp === 'call' && !l.callBack) return false;
+      if (['hot', 'warm', 'cold'].indexOf(L.temp) >= 0 && l.temp !== L.temp) return false;
+      if (src === 'mine' && l.staff !== S.staff) return false;
+      if (src !== 'all' && src !== 'mine' && l.source !== src) return false;
+      if (q) {
+        var hay = [l.name, l.waName, l.company, l.city, l.email, l.designation, l.notes].join(' ').toLowerCase();
+        if (hay.indexOf(q) < 0 && !(qd.length >= 4 && String(l.mobile).replace(/\D/g, '').indexOf(qd) >= 0)) return false;
+      }
+      return true;
+    });
+  }
+  function renderLeads() {
+    var list = filtered(), all = L.all;
+    var hot = all.filter(function (l) { return l.temp === 'hot'; }).length, calls = all.filter(function (l) { return l.callBack; }).length;
+    $('#stats').textContent = all.length + ' leads · ' + hot + ' hot · ' + calls + ' call back' + (list.length !== all.length ? ' · showing ' + list.length : '');
+    var c = $('#leadCount'); c.textContent = all.length; show(c, all.length > 0);
+    if (!list.length) { $('#leadList').innerHTML = '<div class="empty">' + (all.length ? 'No leads match.' : 'No leads yet. Scan a card on the Card Scan tab.') + '</div>'; return; }
+    $('#leadList').innerHTML = list.map(function (l, i) {
+      var digits = String(l.mobile).replace(/\D/g, ''), key = digits;
+      var tags = '<span class="tg src">' + esc(l.source) + (l.staff ? ' · ' + esc(l.staff) : '') + '</span>'
+        + (l.temp ? '<span class="tg ' + esc(l.temp) + '">' + esc(l.temp.charAt(0).toUpperCase() + l.temp.slice(1)) + '</span>' : '')
+        + (l.callBack ? '<span class="tg call">Call back</span>' : '') + (l.optOut ? '<span class="tg">Opted out</span>' : '') + (l.error ? '<span class="tg err">Send failed</span>' : '');
+      var rows = [['Designation', l.designation], ['Email', l.email], ['Visitor', l.visitorType], ['Interested', (l.interests || []).join(', ')],
+        ['Catalogues sent', (l.catalogues || []).join(', ')], ['Project', [l.projectType, l.qty, l.timeline].filter(Boolean).join(' · ')],
+        ['Notes', l.notes], ['Messages', (l.messages || []).join(' | ')], ['Error', l.error], ['First contact', when(l.firstAt)]]
+        .filter(function (r) { return r[1]; }).map(function (r) { return '<div><b>' + r[0] + ':</b> ' + esc(r[1]) + '</div>'; }).join('');
+      return '<div class="lead"><div class="top" data-k="' + key + '"><div><div class="nm">' + esc(l.name || l.waName || l.mobile) + '</div>'
+        + '<div class="sub">' + esc([l.company, l.city].filter(Boolean).join(' · ') || l.mobile) + '</div><div class="tags">' + tags + '</div></div>'
+        + '<div class="when">' + esc(when(l.lastAt)) + '</div></div>'
+        + (L.open[key] ? '<div class="more">' + '<div><b>Mobile:</b> ' + esc(l.mobile) + '</div>' + rows + '</div>' : '')
+        + '<div class="acts"><a class="btn" href="tel:+' + digits + '">📞 Call</a><a class="btn green" target="_blank" rel="noopener" href="https://wa.me/' + digits + '">WhatsApp</a></div></div>';
+    }).join('');
+  }
+  $('#leadList').addEventListener('click', function (e) { var t = e.target.closest('.top'); if (!t) return; L.open[t.dataset.k] = !L.open[t.dataset.k]; renderLeads(); });
+  $('#q').addEventListener('input', renderLeads);
+  $('#srcF').addEventListener('change', renderLeads);
+  $('#tempF').addEventListener('click', function (e) {
+    var b = e.target.closest('.fchip'); if (!b) return; L.temp = b.dataset.f;
+    document.querySelectorAll('#tempF .fchip').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); renderLeads();
+  });
+  $('#refreshBtn').addEventListener('click', loadLeads);
+  $('#csvBtn').addEventListener('click', function () {
+    var cols = [['Name','name'],['WhatsApp name','waName'],['Mobile','mobile'],['Company','company'],['Designation','designation'],['City','city'],['Email','email'],
+      ['Source','source'],['Staff','staff'],['Temperature','temp'],['Visitor type','visitorType'],['Interested','interests'],['Catalogues sent','catalogues'],
+      ['Project type','projectType'],['Quantity','qty'],['Timeline','timeline'],['Notes','notes'],['Call back','callBack'],['First contact','firstAt'],['Last contact','lastAt']];
+    var cell = function (v) { v = Array.isArray(v) ? v.join('; ') : (v === true ? 'Yes' : v === false ? '' : (v == null ? '' : String(v))); if (/^[=@]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"'; };
+    var lines = [cols.map(function (c) { return cell(c[0]); }).join(',')].concat(filtered().map(function (l) { return cols.map(function (c) { return cell(l[c[1]]); }).join(','); }));
+    var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'ronch-leads-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
   });
 
   /* ---------- start ---------- */
