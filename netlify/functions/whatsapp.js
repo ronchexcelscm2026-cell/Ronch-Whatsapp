@@ -277,6 +277,19 @@ function validSignature(raw, header) {
 
 const seen = new Set();
 
+// Meta re-delivers a message if we answer slowly, and the retry can land on a fresh server
+// where the in-memory list is empty. Keep a shared record of handled message IDs.
+async function firstTime(id) {
+  if (seen.has(id)) return false;
+  seen.add(id); if (seen.size > 2000) seen.delete(seen.values().next().value);
+  try {
+    const store = getStore('seen');
+    if (await store.get(id)) return false;
+    await store.set(id, new Date().toISOString());
+  } catch (err) { console.error('Seen store failed', err && err.message); }
+  return true;
+}
+
 exports.handler = async (event) => {
   // Meta's one-time webhook verification
   if (event.httpMethod === 'GET') {
@@ -317,10 +330,13 @@ exports.handler = async (event) => {
       console.log('Event:', change.field, '| messages:', (v.messages || []).length, '| statuses:', (v.statuses || []).map(s => s.status).join(',') || '-');
       const contacts = v.contacts || [];
       for (const msg of v.messages || []) {
-        if (seen.has(msg.id)) continue;        // Meta sometimes delivers the same message twice
-        seen.add(msg.id); if (seen.size > 2000) seen.delete(seen.values().next().value);
         const contact = contacts.find(c => c.wa_id === msg.from) || contacts[0];
-        jobs.push(handleMessage(msg, contact).catch(err => {
+        jobs.push(firstTime(msg.id).then(fresh => {
+          if (!fresh) { console.log('Duplicate delivery ignored', msg.id); return; }
+          // visitor wrote to us: for the next 24 h the team page can send PDFs without a template
+          getStore('inbound').set(msg.from, new Date().toISOString()).catch(() => {});
+          return handleMessage(msg, contact);
+        }).catch(err => {
           console.error(err);
           return recordLead(msg.from, '', { failed: 'Bot error: ' + String(err.message || err) });
         }));

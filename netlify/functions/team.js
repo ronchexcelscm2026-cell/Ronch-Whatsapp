@@ -143,10 +143,17 @@ async function submit(body) {
   if (wantSend && lead.optOut) {
     result.note = 'This number replied STOP earlier, so nothing was sent.';
   } else if (wantSend) {
-    const t = await templateStatus();
-    result.template = t.status;
-    if (t.status === 'APPROVED') {
-      result.sent = await sendTemplateDocs(to, s(v.name).split(' ')[0], list);
+    const missing = await missingFiles(list);
+    if (missing.length) result.missing = missing.map(d => `${d.title} (${d.file} is not uploaded)`);
+    const ready = list.filter(d => !missing.includes(d));
+    const direct = await inWindow(to);
+    const t = direct ? { status: 'APPROVED' } : await templateStatus();
+    result.template = direct ? 'DIRECT' : t.status;
+    if (!ready.length) {
+      result.note = 'These catalogue PDFs are not on the site yet.';
+    } else if (t.status === 'APPROVED') {
+      result.sent = direct ? await sendDirectDocs(to, ready) : await sendTemplateDocs(to, s(v.name).split(' ')[0], ready);
+      result.sentAt = now;
       const okTitles = result.sent.filter(x => x.ok).map(x => x.title);
       lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(okTitles)));
       const failed = result.sent.filter(x => !x.ok);
@@ -163,6 +170,37 @@ async function submit(body) {
   }
   await store.setJSON(key, lead);
   return json(200, result);
+}
+
+// Did the visitor message the bot in the last 24 hours? Then a plain document message works (no template needed).
+async function inWindow(to) {
+  try {
+    const t = await getStore('inbound').get(to);
+    return !!t && Date.now() - Date.parse(t) < 23.5 * 3600 * 1000;
+  } catch { return false; }
+}
+
+async function sendDirectDocs(to, list) {
+  const out = [];
+  for (const d of list) {
+    try {
+      await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
+        method: 'POST',
+        json: { messaging_product: 'whatsapp', to, type: 'document',
+          document: { link: `${siteBase()}/${encodeURIComponent(d.file)}`, filename: d.filename, caption: `${d.title} catalogue - ${config.company}` } }
+      });
+      out.push({ title: d.title, ok: true });
+    } catch (err) {
+      out.push({ title: d.title, ok: false, error: String(err.message || err).slice(0, 200) });
+    }
+  }
+  return out;
+}
+
+// Check each PDF is really on the site before asking WhatsApp to fetch it
+async function missingFiles(list) {
+  const res = await Promise.all(list.map(d => fetch(`${siteBase()}/${encodeURIComponent(d.file)}`, { method: 'HEAD' }).then(r => r.ok).catch(() => true)));
+  return list.filter((d, i) => !res[i]);
 }
 
 async function sendTemplateDocs(to, firstName, list) {
@@ -204,10 +242,16 @@ async function resend(body) {
   const name = String(lead.fullName || lead.name || body.name || '').trim();
   const result = { ok: true, sent: [], waLink: '' };
   if (lead.optOut) return json(200, Object.assign(result, { note: 'This number replied STOP earlier, so nothing was sent.' }));
-  const t = await templateStatus();
-  result.template = t.status;
+  const missing = await missingFiles(list);
+  const ready = list.filter(d => !missing.includes(d));
+  if (missing.length) result.missing = missing.map(d => `${d.title} (${d.file} is not uploaded)`);
+  if (!ready.length) { result.waLink = ''; result.note = 'These catalogue PDFs are not on the site yet.'; return json(200, result); }
+  const direct = await inWindow(to);
+  const t = direct ? { status: 'APPROVED' } : await templateStatus();
+  result.template = direct ? 'DIRECT' : t.status;
   if (t.status === 'APPROVED') {
-    result.sent = await sendTemplateDocs(to, name.split(' ')[0], list);
+    result.sent = direct ? await sendDirectDocs(to, ready) : await sendTemplateDocs(to, name.split(' ')[0], ready);
+    result.sentAt = now;
     const okTitles = result.sent.filter(x => x.ok).map(x => x.title);
     lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(okTitles)));
     const failed = result.sent.filter(x => !x.ok);
@@ -233,7 +277,7 @@ async function listLeads() {
     visitorType: l.visitorType || '', projectType: l.projectType || '', qty: l.qty || '', timeline: l.timeline || '',
     interests: l.interests || [], catalogues: l.catalogues || [], notes: l.notes || '',
     messages: (l.messages || []).map(m => m.text).slice(-5), callBack: !!l.callBack, optOut: !!l.optOut,
-    error: l.lastError ? l.lastError.error : '', firstAt: l.firstAt || '', lastAt: l.lastAt || ''
+    error: l.lastError ? l.lastError.error : '', errorAt: l.lastError ? l.lastError.at : '', firstAt: l.firstAt || '', lastAt: l.lastAt || ''
   });
   const leads = all.filter(Boolean).map(pick).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
   return json(200, { ok: true, leads });

@@ -76,6 +76,7 @@
   .sendbox .lbl { font-size:13px; font-weight:bold; color:var(--muted); margin-bottom:8px; }
   .sendbox .chip { min-height:38px; font-size:14px; }
   .sendbox small { font-weight:normal; opacity:.75; }
+  .muted { color:var(--muted); font-size:14px; }
   .sendmsg { margin-top:10px; font-size:14px; line-height:1.5; }
   .sendmsg .good { color:var(--green); font-weight:bold; } .sendmsg .bad { color:var(--err); }
   .empty { text-align:center; color:var(--muted); padding:30px 10px; }
@@ -83,7 +84,6 @@
   .bar .btn { flex:1; }
   .hidden { display:none !important; }
   .login { max-width:420px; margin:40px auto; }
-  .muted { color:var(--muted); font-size:14px; }
   .done-list { margin:8px 0 0; padding-left:20px; }
   .tmp-note { font-size:13px; color:var(--muted); margin-top:6px; }
 </style>
@@ -226,7 +226,7 @@
     }
   }
   function setTemplateNote(t) {
-    var s = t && t.status;
+    var s = t && t.status; S.tpl = s;
     show($('#setupRow'), s === 'NOT_CREATED' || s === 'REJECTED');
     $('#tmpNote').textContent = s === 'APPROVED' ? 'Catalogues go out automatically from +91 88662 73800.'
       : 'Automatic WhatsApp sending is ' + (s === 'NOT_CREATED' ? 'not set up yet' : 'waiting for Meta approval') + ' — after Submit you\'ll get a one-tap WhatsApp button instead.';
@@ -355,11 +355,16 @@
       if (d.sent && d.sent.length) {
         html += '<ul class="done-list">' + d.sent.map(function (x) { return '<li>' + x.title + (x.ok ? ' — sent on WhatsApp' : ' — <b>not sent</b>') + '</li>'; }).join('') + '</ul>';
       }
+      html += sendDetails(d);
       if (d.note) html += '<p class="muted">' + d.note + '</p>';
+      if (d.sent && d.sent.some(function (x) { return x.ok; })) html += '<p class="muted" id="dlv">Checking delivery…</p>';
       if (d.waLink) html += '<p><a class="btn green" target="_blank" rel="noopener" href="' + d.waLink + '">Send catalogues from this phone (WhatsApp)</a></p>';
       html += '<p><button class="btn primary" id="nextBtn" style="width:100%">Next visitor</button></p>';
       rc.innerHTML = html; show(rc, true); rc.scrollIntoView({ behavior: 'smooth' });
       $('#nextBtn').addEventListener('click', resetForm);
+      var dl = $('#dlv');
+      if (dl) { checkDelivery(mob.length === 10 ? '91' + mob : mob, d.sentAt, function (err) { if (dl.isConnected) { dl.className = 'status err'; dl.textContent = 'WhatsApp could not deliver: ' + err; } });
+        setTimeout(function () { if (dl.isConnected && dl.textContent === 'Checking delivery…') dl.textContent = '✓ No delivery problem reported by WhatsApp.'; }, 17000); }
       api('/.netlify/functions/team', { action: 'list', key: S.key }).then(function (d) { L.all = d.leads || []; var c = $('#leadCount'); c.textContent = L.all.length; show(c, L.all.length > 0); }).catch(function () {});
     } catch (e) {
       rc.innerHTML = '<div class="status err">Not saved: ' + e.message + '. Check the network and try again.</div>'; show(rc, true);
@@ -367,6 +372,27 @@
       S.busy = false; $('#submitBtn').disabled = false; $('#submitBtn').textContent = 'Submit & send';
     }
   });
+
+  /* ---------- delivery check ---------- */
+  // WhatsApp accepts the message first and reports delivery problems a few seconds later.
+  function sendDetails(d) {
+    var h = '';
+    (d.missing || []).forEach(function (m) { h += '<div class="bad">Not sent: ' + esc(m) + '</div>'; });
+    (d.sent || []).filter(function (s) { return !s.ok; }).forEach(function (s) { h += '<div class="bad">Not sent: ' + esc(s.title) + ' — ' + esc(s.error || '') + '</div>'; });
+    if (d.template === 'DIRECT') h += '<div class="muted">Sent as a normal WhatsApp message (visitor chatted with the bot today).</div>';
+    return h;
+  }
+  function checkDelivery(mobile, sentAt, onFail) {
+    if (!sentAt) return;
+    setTimeout(async function () {
+      try {
+        var d = await api('/.netlify/functions/team', { action: 'list', key: S.key });
+        L.all = d.leads || [];
+        var l = L.all.filter(function (x) { return String(x.mobile).replace(/\D/g, '') === String(mobile).replace(/\D/g, ''); })[0];
+        if (l && l.error && l.errorAt && l.errorAt >= sentAt) onFail(l.error);
+      } catch (e) {}
+    }, 15000);
+  }
 
   /* ---------- tabs ---------- */
   function setTab(t) {
@@ -404,7 +430,8 @@
   function renderLeads() {
     var list = filtered(), all = L.all;
     var hot = all.filter(function (l) { return l.temp === 'hot'; }).length, calls = all.filter(function (l) { return l.callBack; }).length;
-    $('#stats').textContent = all.length + ' leads · ' + hot + ' hot · ' + calls + ' call back' + (list.length !== all.length ? ' · showing ' + list.length : '');
+    var tpl = { APPROVED: 'auto-send ON', PENDING: 'auto-send waiting for Meta approval', NOT_CREATED: 'auto-send not set up', REJECTED: 'auto-send template rejected' }[S.tpl] || '';
+    $('#stats').textContent = all.length + ' leads · ' + hot + ' hot · ' + calls + ' call back' + (list.length !== all.length ? ' · showing ' + list.length : '') + (tpl ? ' · ' + tpl : '');
     var c = $('#leadCount'); c.textContent = all.length; show(c, all.length > 0);
     if (!list.length) { $('#leadList').innerHTML = '<div class="empty">' + (all.length ? 'No leads match.' : 'No leads yet. Scan a card on the Card Scan tab.') + '</div>'; return; }
     $('#leadList').innerHTML = list.map(function (l, i) {
@@ -448,10 +475,14 @@
         var okN = (d.sent || []).filter(function (s) { return s.ok; });
         var bad = (d.sent || []).filter(function (s) { return !s.ok; });
         var msg = okN.length ? '<span class="good">✓ Sent on WhatsApp: ' + esc(okN.map(function (s) { return s.title; }).join(', ')) + '</span>' : '';
-        if (bad.length) msg += '<div class="bad">Not sent: ' + esc(bad.map(function (s) { return s.title; }).join(', ')) + '</div>';
+        msg += sendDetails(d);
         if (d.note) msg += '<div>' + esc(d.note) + '</div>';
         if (d.waLink) msg += '<a class="btn green" style="margin-top:8px" target="_blank" rel="noopener" href="' + esc(d.waLink) + '">Send links from my WhatsApp</a>';
+        if (okN.length) msg += '<div class="muted" data-dlv="1">Checking delivery…</div>';
         L.sendMsg = msg;
+        if (okN.length) checkDelivery(lead.mobile, d.sentAt, function (err) {
+          L.sendMsg = L.sendMsg.replace('<div class="muted" data-dlv="1">Checking delivery…</div>', '<div class="bad">WhatsApp could not deliver: ' + esc(err) + '</div>'); renderLeads(); });
+        if (okN.length) setTimeout(function () { if (L.sendMsg.indexOf('Checking delivery…') >= 0) { L.sendMsg = L.sendMsg.replace('Checking delivery…', '✓ No delivery problem reported by WhatsApp.'); renderLeads(); } }, 17000);
         if (okN.length) okN.forEach(function (s) { if ((lead.catalogues || []).indexOf(s.title) < 0) (lead.catalogues = lead.catalogues || []).push(s.title); });
       } catch (err) { L.sendMsg = '<span class="bad">' + esc(err.message) + '</span>'; }
       renderLeads(); return;
