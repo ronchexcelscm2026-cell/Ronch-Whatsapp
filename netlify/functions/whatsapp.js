@@ -50,7 +50,7 @@ async function waSend(payload) {
 const sendText = (to, body) => waSend({ to, type: 'text', text: { body } });
 
 function sendMenu(to, body) {
-  const rows = config.divisions.map(d => ({ id: 'cat:' + d.id, title: d.title.slice(0, 24), description: d.description.slice(0, 72) }));
+  const rows = config.divisions.map(d => ({ id: 'cat:' + d.id, title: (d.menuTitle || d.title).slice(0, 24), description: d.description.slice(0, 72) }));
   rows.push({ id: 'cat:all', title: 'All catalogues', description: 'Receive every division catalogue' });
   return waSend({
     to, type: 'interactive',
@@ -221,7 +221,7 @@ async function handleMessage(msg, contact) {
       await recordLead(from, name, { optOut: true });
       return;
     }
-    if (/^[1-5]$/.test(t)) choice = 'cat:' + config.divisions[Number(t) - 1].id;
+    if (/^[1-9]$/.test(t) && Number(t) <= config.divisions.length) choice = 'cat:' + config.divisions[Number(t) - 1].id;
     else if (t === '6' || t === 'all') choice = 'cat:all';
     else if (/\b(sales|call|price|quote|quotation)\b/.test(t)) choice = 'sales';
     else {

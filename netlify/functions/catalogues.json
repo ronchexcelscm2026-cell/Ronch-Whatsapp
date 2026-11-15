@@ -7,38 +7,43 @@
   "divisions": [
     {
       "id": "facade",
-      "title": "Facade Lighting",
-      "description": "Linear, wall washers, pixel and flood lights",
-      "file": "Facade.pdf",
-      "filename": "Ronch Excel - Facade Lighting.pdf"
-    },
-    {
-      "id": "landscape",
-      "title": "Landscape Lighting",
-      "description": "Bollards, spike, underwater and garden lights",
-      "file": "Landscape.pdf",
-      "filename": "Ronch Excel - Landscape Lighting.pdf"
+      "title": "Facade and Landscape Lighting",
+      "menuTitle": "Facade & Landscape",
+      "description": "Linear, wall washers, flood, bollard and garden lights",
+      "file": "Facade-Landscape.pdf",
+      "filename": "Ronch Excel - Facade and Landscape Lighting.pdf"
     },
     {
       "id": "solar",
       "title": "Solar Lighting",
+      "menuTitle": "Solar Lighting",
       "description": "Solar street, garden and area lights",
       "file": "Solar.pdf",
       "filename": "Ronch Excel - Solar Lighting.pdf"
     },
     {
       "id": "drivers",
-      "title": "LED Drivers (CV & CC)",
+      "title": "LED Drivers (CV/CC)",
+      "menuTitle": "LED Drivers (CV/CC)",
       "description": "Constant voltage and constant current drivers",
       "file": "LED-Drivers.pdf",
-      "filename": "Ronch Excel - LED Drivers CV & CC.pdf"
+      "filename": "Ronch Excel - LED Drivers CV-CC.pdf"
     },
     {
-      "id": "indoor",
-      "title": "Indoor Lighting",
-      "description": "Panels, downlights, profiles and track lights",
-      "file": "Indoor.pdf",
-      "filename": "Ronch Excel - Indoor Lighting.pdf"
+      "id": "projection",
+      "title": "Projection Mapping",
+      "menuTitle": "Projection Mapping",
+      "description": "3D projection mapping on buildings and structures",
+      "file": "Projection-Mapping.pdf",
+      "filename": "Ronch Excel - Projection Mapping.pdf"
+    },
+    {
+      "id": "displays",
+      "title": "LED Displays",
+      "menuTitle": "LED Displays",
+      "description": "Indoor and outdoor LED display screens",
+      "file": "LED-Displays.pdf",
+      "filename": "Ronch Excel - LED Displays.pdf"
     }
   ],
   "questions": [

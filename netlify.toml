@@ -27,12 +27,7 @@
 
 [[redirects]]
   from = "/c/facade"
-  to = "/catalogues/Facade.pdf"
-  status = 302
-
-[[redirects]]
-  from = "/c/landscape"
-  to = "/catalogues/Landscape.pdf"
+  to = "/catalogues/Facade-Landscape.pdf"
   status = 302
 
 [[redirects]]
@@ -46,8 +41,23 @@
   status = 302
 
 [[redirects]]
+  from = "/c/projection"
+  to = "/catalogues/Projection-Mapping.pdf"
+  status = 302
+
+[[redirects]]
+  from = "/c/displays"
+  to = "/catalogues/LED-Displays.pdf"
+  status = 302
+
+[[redirects]]
+  from = "/c/landscape"
+  to = "/catalogues/Facade-Landscape.pdf"
+  status = 302
+
+[[redirects]]
   from = "/c/indoor"
-  to = "/catalogues/Indoor.pdf"
+  to = "/c"
   status = 302
 
 # Stand team page
