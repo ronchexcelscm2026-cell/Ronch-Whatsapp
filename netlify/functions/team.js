@@ -146,26 +146,7 @@ async function submit(body) {
     const t = await templateStatus();
     result.template = t.status;
     if (t.status === 'APPROVED') {
-      for (const d of list) {
-        try {
-          await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
-            method: 'POST',
-            json: {
-              messaging_product: 'whatsapp', to, type: 'template',
-              template: {
-                name: TEMPLATE, language: { code: LANG },
-                components: [
-                  { type: 'header', parameters: [{ type: 'document', document: { link: `${siteBase()}/${encodeURIComponent(d.file)}`, filename: d.filename } }] },
-                  { type: 'body', parameters: [{ type: 'text', text: (s(v.name).split(' ')[0] || 'there') }, { type: 'text', text: d.title }] }
-                ]
-              }
-            }
-          });
-          result.sent.push({ title: d.title, ok: true });
-        } catch (err) {
-          result.sent.push({ title: d.title, ok: false, error: String(err.message || err).slice(0, 200) });
-        }
-      }
+      result.sent = await sendTemplateDocs(to, s(v.name).split(' ')[0], list);
       const okTitles = result.sent.filter(x => x.ok).map(x => x.title);
       lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(okTitles)));
       const failed = result.sent.filter(x => !x.ok);
@@ -180,6 +161,64 @@ async function submit(body) {
       result.note = t.status === 'NOT_CREATED' ? 'Automatic sending is not set up yet.' : `Automatic sending is waiting for Meta approval (${t.status}).`;
     }
   }
+  await store.setJSON(key, lead);
+  return json(200, result);
+}
+
+async function sendTemplateDocs(to, firstName, list) {
+  const out = [];
+  for (const d of list) {
+    try {
+      await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
+        method: 'POST',
+        json: {
+          messaging_product: 'whatsapp', to, type: 'template',
+          template: {
+            name: TEMPLATE, language: { code: LANG },
+            components: [
+              { type: 'header', parameters: [{ type: 'document', document: { link: `${siteBase()}/${encodeURIComponent(d.file)}`, filename: d.filename } }] },
+              { type: 'body', parameters: [{ type: 'text', text: firstName || 'there' }, { type: 'text', text: d.title }] }
+            ]
+          }
+        }
+      });
+      out.push({ title: d.title, ok: true });
+    } catch (err) {
+      out.push({ title: d.title, ok: false, error: String(err.message || err).slice(0, 200) });
+    }
+  }
+  return out;
+}
+
+// Send catalogues again to a lead already in the list (Leads tab -> Send catalogue)
+async function resend(body) {
+  const to = normMobile(body.mobile);
+  if (!to) return json(400, { ok: false, error: 'This lead has no valid mobile number.' });
+  const ids = Array.isArray(body.ids) ? body.ids : [];
+  const list = config.divisions.filter(d => ids.includes(d.id));
+  if (!list.length) return json(400, { ok: false, error: 'Pick at least one catalogue.' });
+  const store = getStore('leads');
+  const key = 'wa-' + to;
+  const now = new Date().toISOString();
+  const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + to, firstAt: now, catalogues: [], messages: [], source: 'Stand team' };
+  const name = String(lead.fullName || lead.name || body.name || '').trim();
+  const result = { ok: true, sent: [], waLink: '' };
+  if (lead.optOut) return json(200, Object.assign(result, { note: 'This number replied STOP earlier, so nothing was sent.' }));
+  const t = await templateStatus();
+  result.template = t.status;
+  if (t.status === 'APPROVED') {
+    result.sent = await sendTemplateDocs(to, name.split(' ')[0], list);
+    const okTitles = result.sent.filter(x => x.ok).map(x => x.title);
+    lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(okTitles)));
+    const failed = result.sent.filter(x => !x.ok);
+    if (failed.length) { lead.lastError = { at: now, error: 'Send failed: ' + failed[0].error }; result.waLink = staffWhatsAppLink(to, name, list); }
+    else delete lead.lastError;
+  } else {
+    result.waLink = staffWhatsAppLink(to, name, list);
+    result.note = t.status === 'NOT_CREATED' ? 'Automatic sending is not set up yet.' : `Automatic sending is waiting for Meta approval (${t.status}).`;
+  }
+  lead.lastAt = now;
+  if (body.staff) lead.lastSentBy = String(body.staff).slice(0, 80);
   await store.setJSON(key, lead);
   return json(200, result);
 }
@@ -213,6 +252,7 @@ exports.handler = async (event) => {
     if (body.action === 'setup') return json(200, { ok: true, template: await setupTemplate() });
     if (body.action === 'submit') return await submit(body);
     if (body.action === 'list') return await listLeads();
+    if (body.action === 'send') return await resend(body);
     return json(400, { ok: false, error: 'Unknown action' });
   } catch (err) {
     console.error('team error', err);

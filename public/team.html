@@ -71,6 +71,13 @@
   .lead .more b { color:var(--muted); font-weight:bold; }
   .lead .acts { display:flex; gap:8px; margin-top:10px; }
   .lead .acts .btn { flex:1; min-height:42px; font-size:14px; }
+  .lead .acts .btn { padding:0 8px; }
+  .sendbox { margin-top:10px; padding:10px; border-radius:10px; background:#f3f7fa; border:1px solid var(--line); }
+  .sendbox .lbl { font-size:13px; font-weight:bold; color:var(--muted); margin-bottom:8px; }
+  .sendbox .chip { min-height:38px; font-size:14px; }
+  .sendbox small { font-weight:normal; opacity:.75; }
+  .sendmsg { margin-top:10px; font-size:14px; line-height:1.5; }
+  .sendmsg .good { color:var(--green); font-weight:bold; } .sendmsg .bad { color:var(--err); }
   .empty { text-align:center; color:var(--muted); padding:30px 10px; }
   .bar .in { max-width:620px; margin:0 auto; display:flex; gap:10px; }
   .bar .btn { flex:1; }
@@ -413,10 +420,44 @@
         + '<div class="sub">' + esc([l.company, l.city].filter(Boolean).join(' · ') || l.mobile) + '</div><div class="tags">' + tags + '</div></div>'
         + '<div class="when">' + esc(when(l.lastAt)) + '</div></div>'
         + (L.open[key] ? '<div class="more">' + '<div><b>Mobile:</b> ' + esc(l.mobile) + '</div>' + rows + '</div>' : '')
-        + '<div class="acts"><a class="btn" href="tel:+' + digits + '">📞 Call</a><a class="btn green" target="_blank" rel="noopener" href="https://wa.me/' + digits + '">WhatsApp</a></div></div>';
+        + '<div class="acts"><a class="btn" href="tel:+' + digits + '">📞 Call</a><a class="btn" target="_blank" rel="noopener" href="https://wa.me/' + digits + '">WhatsApp</a>'
+        + '<button class="btn green" data-send="' + key + '">📄 Send catalogue</button></div>'
+        + (L.send === key ? sendBox(l, key) : '') + '</div>';
     }).join('');
   }
-  $('#leadList').addEventListener('click', function (e) { var t = e.target.closest('.top'); if (!t) return; L.open[t.dataset.k] = !L.open[t.dataset.k]; renderLeads(); });
+  function sendBox(l, key) {
+    var sel = L.pick || {};
+    return '<div class="sendbox"><div class="lbl">Catalogues to send to ' + esc(l.name || l.mobile) + '</div><div class="chips">'
+      + DIVS.map(function (d) { var done = (l.catalogues || []).indexOf(d[1]) >= 0;
+        return '<button type="button" class="chip" data-pick="' + d[0] + '" aria-pressed="' + !!sel[d[0]] + '">' + esc(d[1]) + (done ? ' <small>(sent)</small>' : '') + '</button>'; }).join('')
+      + '</div><div class="acts"><button class="btn" data-cancel="1">Cancel</button><button class="btn primary" data-go="' + key + '">Send now</button></div>'
+      + (L.sendMsg ? '<div class="sendmsg">' + L.sendMsg + '</div>' : '') + '</div>';
+  }
+  $('#leadList').addEventListener('click', async function (e) {
+    var x;
+    if ((x = e.target.closest('[data-send]'))) { L.send = L.send === x.dataset.send ? null : x.dataset.send; L.pick = {}; L.sendMsg = ''; renderLeads(); return; }
+    if ((x = e.target.closest('[data-pick]'))) { L.pick[x.dataset.pick] = !L.pick[x.dataset.pick]; x.setAttribute('aria-pressed', !!L.pick[x.dataset.pick]); return; }
+    if (e.target.closest('[data-cancel]')) { L.send = null; renderLeads(); return; }
+    if ((x = e.target.closest('[data-go]'))) {
+      var ids = Object.keys(L.pick).filter(function (k) { return L.pick[k]; });
+      if (!ids.length) { L.sendMsg = '<span class="bad">Tap at least one catalogue.</span>'; renderLeads(); return; }
+      var lead = L.all.filter(function (l) { return String(l.mobile).replace(/\D/g, '') === x.dataset.go; })[0] || {};
+      x.disabled = true; x.textContent = 'Sending…';
+      try {
+        var d = await api('/.netlify/functions/team', { action: 'send', key: S.key, staff: S.staff, mobile: lead.mobile, name: lead.name, ids: ids });
+        var okN = (d.sent || []).filter(function (s) { return s.ok; });
+        var bad = (d.sent || []).filter(function (s) { return !s.ok; });
+        var msg = okN.length ? '<span class="good">✓ Sent on WhatsApp: ' + esc(okN.map(function (s) { return s.title; }).join(', ')) + '</span>' : '';
+        if (bad.length) msg += '<div class="bad">Not sent: ' + esc(bad.map(function (s) { return s.title; }).join(', ')) + '</div>';
+        if (d.note) msg += '<div>' + esc(d.note) + '</div>';
+        if (d.waLink) msg += '<a class="btn green" style="margin-top:8px" target="_blank" rel="noopener" href="' + esc(d.waLink) + '">Send links from my WhatsApp</a>';
+        L.sendMsg = msg;
+        if (okN.length) okN.forEach(function (s) { if ((lead.catalogues || []).indexOf(s.title) < 0) (lead.catalogues = lead.catalogues || []).push(s.title); });
+      } catch (err) { L.sendMsg = '<span class="bad">' + esc(err.message) + '</span>'; }
+      renderLeads(); return;
+    }
+    var t = e.target.closest('.top'); if (!t) return; L.open[t.dataset.k] = !L.open[t.dataset.k]; renderLeads();
+  });
   $('#q').addEventListener('input', renderLeads);
   $('#srcF').addEventListener('change', renderLeads);
   $('#tempF').addEventListener('click', function (e) {
