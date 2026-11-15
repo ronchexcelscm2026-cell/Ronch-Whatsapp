@@ -123,7 +123,7 @@ async function submit(body) {
   const ids = Array.isArray(v.interests) ? v.interests : [];
   const list = config.divisions.filter(d => ids.includes(d.id));
   const now = new Date().toISOString();
-  const store = getStore('leads');
+  const store = getStore({ name: 'leads', consistency: 'strong' });
   const key = 'wa-' + to;
   const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + to, firstAt: now, catalogues: [], messages: [] };
   const s = x => String(x == null ? '' : x).trim().slice(0, 300);
@@ -154,6 +154,7 @@ async function submit(body) {
     } else if (t.status === 'APPROVED') {
       result.sent = direct ? await sendDirectDocs(to, ready) : await sendTemplateDocs(to, s(v.name).split(' ')[0], ready);
       result.sentAt = now;
+      await track(to, lead, result.sent, result.template, now);
       const okTitles = result.sent.filter(x => x.ok).map(x => x.title);
       lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(okTitles)));
       const failed = result.sent.filter(x => !x.ok);
@@ -172,10 +173,18 @@ async function submit(body) {
   return json(200, result);
 }
 
+// Remember every message WhatsApp accepted, so delivery reports (delivered / read / failed) can be shown later
+async function track(to, lead, sent, kind, at) {
+  const ok = (sent || []).filter(x => x.ok && x.id);
+  const box = getStore({ name: 'outbox', consistency: 'strong' });
+  await Promise.all(ok.map(x => box.setJSON(x.id, { to, title: x.title, at, kind, status: 'accepted' }).catch(() => {})));
+  lead.sends = (lead.sends || []).concat(ok.map(x => ({ id: x.id, title: x.title, at, kind }))).slice(-10);
+}
+
 // Did the visitor message the bot in the last 24 hours? Then a plain document message works (no template needed).
 async function inWindow(to) {
   try {
-    const t = await getStore('inbound').get(to);
+    const t = await getStore({ name: 'inbound', consistency: 'strong' }).get(to);
     return !!t && Date.now() - Date.parse(t) < 23.5 * 3600 * 1000;
   } catch { return false; }
 }
@@ -184,12 +193,12 @@ async function sendDirectDocs(to, list) {
   const out = [];
   for (const d of list) {
     try {
-      await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
+      const r = await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
         method: 'POST',
         json: { messaging_product: 'whatsapp', to, type: 'document',
           document: { link: `${siteBase()}/${encodeURIComponent(d.file)}`, filename: d.filename, caption: `${d.title} catalogue - ${config.company}` } }
       });
-      out.push({ title: d.title, ok: true });
+      out.push({ title: d.title, ok: true, id: (r && r.messages && r.messages[0] && r.messages[0].id) || '' });
     } catch (err) {
       out.push({ title: d.title, ok: false, error: String(err.message || err).slice(0, 200) });
     }
@@ -207,7 +216,7 @@ async function sendTemplateDocs(to, firstName, list) {
   const out = [];
   for (const d of list) {
     try {
-      await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
+      const r = await graph(`/${env('WA_PHONE_NUMBER_ID')}/messages`, {
         method: 'POST',
         json: {
           messaging_product: 'whatsapp', to, type: 'template',
@@ -220,7 +229,7 @@ async function sendTemplateDocs(to, firstName, list) {
           }
         }
       });
-      out.push({ title: d.title, ok: true });
+      out.push({ title: d.title, ok: true, id: (r && r.messages && r.messages[0] && r.messages[0].id) || '' });
     } catch (err) {
       out.push({ title: d.title, ok: false, error: String(err.message || err).slice(0, 200) });
     }
@@ -235,7 +244,7 @@ async function resend(body) {
   const ids = Array.isArray(body.ids) ? body.ids : [];
   const list = config.divisions.filter(d => ids.includes(d.id));
   if (!list.length) return json(400, { ok: false, error: 'Pick at least one catalogue.' });
-  const store = getStore('leads');
+  const store = getStore({ name: 'leads', consistency: 'strong' });
   const key = 'wa-' + to;
   const now = new Date().toISOString();
   const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + to, firstAt: now, catalogues: [], messages: [], source: 'Stand team' };
@@ -252,6 +261,7 @@ async function resend(body) {
   if (t.status === 'APPROVED') {
     result.sent = direct ? await sendDirectDocs(to, ready) : await sendTemplateDocs(to, name.split(' ')[0], ready);
     result.sentAt = now;
+    await track(to, lead, result.sent, result.template, now);
     const okTitles = result.sent.filter(x => x.ok).map(x => x.title);
     lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(okTitles)));
     const failed = result.sent.filter(x => !x.ok);
@@ -268,7 +278,7 @@ async function resend(body) {
 }
 
 async function listLeads() {
-  const store = getStore('leads');
+  const store = getStore({ name: 'leads', consistency: 'strong' });
   const { blobs } = await store.list();
   const all = await Promise.all(blobs.map(x => store.get(x.key, { type: 'json' })));
   const pick = l => ({
@@ -279,7 +289,16 @@ async function listLeads() {
     messages: (l.messages || []).map(m => m.text).slice(-5), callBack: !!l.callBack, optOut: !!l.optOut,
     error: l.lastError ? l.lastError.error : '', errorAt: l.lastError ? l.lastError.at : '', firstAt: l.firstAt || '', lastAt: l.lastAt || ''
   });
-  const leads = all.filter(Boolean).map(pick).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
+  const box = getStore({ name: 'outbox', consistency: 'strong' });
+  const withSends = await Promise.all(all.filter(Boolean).map(async l => {
+    const p = pick(l);
+    p.sends = await Promise.all((l.sends || []).slice(-6).map(async s => {
+      const o = (await box.get(s.id, { type: 'json' }).catch(() => null)) || {};
+      return { id: s.id, title: s.title, at: s.at, kind: s.kind, status: o.status || 'accepted', statusAt: o.statusAt || '', error: o.error || '' };
+    }));
+    return p;
+  }));
+  const leads = withSends.sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));
   return json(200, { ok: true, leads });
 }
 

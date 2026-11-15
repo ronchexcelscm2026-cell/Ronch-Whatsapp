@@ -49,7 +49,7 @@ function loginForm(error) {
 }
 
 async function loadLeads() {
-  const store = getStore('leads');
+  const store = getStore({ name: 'leads', consistency: 'strong' });
   const { blobs } = await store.list();
   const leads = await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })));
   return leads.filter(Boolean).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));

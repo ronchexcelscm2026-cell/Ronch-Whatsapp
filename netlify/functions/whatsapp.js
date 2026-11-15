@@ -96,21 +96,21 @@ function sendCatalogue(to, d) {
 async function loadLead(from) {
   try {
     const now = new Date().toISOString();
-    return (await getStore('leads').get('wa-' + from, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
+    return (await getStore({ name: 'leads', consistency: 'strong' }).get('wa-' + from, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
   } catch (err) {
     console.error('Lead load failed', from, err && err.message);
     return { mobile: '+' + from, firstAt: new Date().toISOString(), catalogues: [], messages: [] };
   }
 }
 async function saveLead(from, lead) {
-  try { await getStore('leads').setJSON('wa-' + from, lead); }
+  try { await getStore({ name: 'leads', consistency: 'strong' }).setJSON('wa-' + from, lead); }
   catch (err) { console.error('Lead save failed', from, err && err.message); }
 }
 
 // One record per visitor number; every event updates it.
 async function recordLead(from, name, patch) {
   try {
-    const store = getStore('leads');
+    const store = getStore({ name: 'leads', consistency: 'strong' });
     const key = 'wa-' + from;
     const now = new Date().toISOString();
     const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
@@ -277,15 +277,33 @@ function validSignature(raw, header) {
 
 const seen = new Set();
 
+// Delivery reports for catalogues sent from the team page
+const RANK = { accepted: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
+async function updateOutbox(s) {
+  try {
+    const box = getStore({ name: 'outbox', consistency: 'strong' });
+    const o = await box.get(s.id, { type: 'json' });
+    if (!o) return;
+    if ((RANK[s.status] || 0) <= (RANK[o.status] || 0)) return;
+    o.status = s.status;
+    o.statusAt = new Date(Number(s.timestamp || 0) * 1000 || Date.now()).toISOString();
+    if (s.status === 'failed') {
+      const e = (s.errors && s.errors[0]) || {};
+      o.error = `${e.code || ''} ${e.title || ''} ${(e.error_data && e.error_data.details) || e.message || ''}`.trim();
+    }
+    await box.setJSON(s.id, o);
+  } catch (err) { console.error('Outbox update failed', err && err.message); }
+}
+
 // Meta re-delivers a message if we answer slowly, and the retry can land on a fresh server
 // where the in-memory list is empty. Keep a shared record of handled message IDs.
 async function firstTime(id) {
   if (seen.has(id)) return false;
   seen.add(id); if (seen.size > 2000) seen.delete(seen.values().next().value);
   try {
-    const store = getStore('seen');
-    if (await store.get(id)) return false;
-    await store.set(id, new Date().toISOString());
+    // onlyIfNew is atomic: if two copies arrive at the same moment, only one wins
+    const res = await getStore({ name: 'seen', consistency: 'strong' }).set(id, new Date().toISOString(), { onlyIfNew: true });
+    if (res && res.modified === false) return false;
   } catch (err) { console.error('Seen store failed', err && err.message); }
   return true;
 }
@@ -322,6 +340,7 @@ exports.handler = async (event) => {
       const v = change.value || {};
       // Delivery failures of our own messages (e.g. a PDF link that could not be fetched)
       for (const s of v.statuses || []) {
+        jobs.push(updateOutbox(s));
         if (s.status === 'failed') {
           const err = (s.errors && s.errors[0]) || {};
           jobs.push(recordLead(s.recipient_id, '', { failed: `Delivery failed: ${err.code || ''} ${err.title || ''} ${(err.error_data && err.error_data.details) || ''}`.trim() }));
@@ -334,7 +353,7 @@ exports.handler = async (event) => {
         jobs.push(firstTime(msg.id).then(fresh => {
           if (!fresh) { console.log('Duplicate delivery ignored', msg.id); return; }
           // visitor wrote to us: for the next 24 h the team page can send PDFs without a template
-          getStore('inbound').set(msg.from, new Date().toISOString()).catch(() => {});
+          getStore({ name: 'inbound', consistency: 'strong' }).set(msg.from, new Date().toISOString()).catch(() => {});
           return handleMessage(msg, contact);
         }).catch(err => {
           console.error(err);
