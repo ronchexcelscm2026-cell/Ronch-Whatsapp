@@ -301,8 +301,9 @@ async function firstTime(id) {
   if (seen.has(id)) return false;
   seen.add(id); if (seen.size > 2000) seen.delete(seen.values().next().value);
   try {
-    // onlyIfNew is atomic: if two copies arrive at the same moment, only one wins
-    const res = await getStore({ name: 'seen', consistency: 'strong' }).set(id, new Date().toISOString(), { onlyIfNew: true });
+    const store = getStore({ name: 'seen', consistency: 'strong' });
+    if (await store.get(id)) return false;
+    const res = await store.set(id, new Date().toISOString(), { onlyIfNew: true });
     if (res && res.modified === false) return false;
   } catch (err) { console.error('Seen store failed', err && err.message); }
   return true;
