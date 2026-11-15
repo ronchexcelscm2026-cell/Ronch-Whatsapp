@@ -46,28 +46,7 @@
       "filename": "Ronch Excel - LED Displays.pdf"
     }
   ],
-  "questions": [
-    {
-      "field": "fullName",
-      "ask": "To help our team assist you, a few quick questions.\n\n1/5 · What is your *name*?"
-    },
-    {
-      "field": "company",
-      "ask": "2/5 · Your *company* or firm name?"
-    },
-    {
-      "field": "designation",
-      "ask": "3/5 · Your *designation*? (e.g. Architect, Project Manager, Owner)"
-    },
-    {
-      "field": "city",
-      "ask": "4/5 · Which *city* are you based in?"
-    },
-    {
-      "field": "email",
-      "ask": "5/5 · Your *email* address? (we'll send product updates only)"
-    }
-  ],
+  "questions": [],
   "questionsDone": "Thank you! Our team will get in touch. Want another catalogue or a call?",
   "badEmail": "That doesn't look like an email address. Please type it again, or tap Skip."
 }

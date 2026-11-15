@@ -8,6 +8,22 @@
 const crypto = require('crypto');
 const { connectLambda, getStore } = require('@netlify/blobs');
 
+// Strong (always up-to-date) reads where Netlify supports them, normal reads otherwise
+function getStoreSafe(name) {
+  let strong = null;
+  try { strong = getStore({ name, consistency: 'strong' }); } catch { strong = null; }
+  const normal = getStore(name);
+  const call = m => async (...a) => {
+    if (strong) {
+      try { return await strong[m](...a); }
+      catch (err) { if (!/uncachedEdgeURL|consistency/i.test(String(err && err.message))) throw err; strong = null; }
+    }
+    return normal[m](...a);
+  };
+  return { get: call('get'), set: call('set'), setJSON: call('setJSON'), list: call('list'), delete: call('delete') };
+}
+
+
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ist = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short' }) : '';
 
@@ -49,7 +65,7 @@ function loginForm(error) {
 }
 
 async function loadLeads() {
-  const store = getStore({ name: 'leads', consistency: 'strong' });
+  const store = getStoreSafe('leads');
   const { blobs } = await store.list();
   const leads = await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })));
   return leads.filter(Boolean).sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt)));

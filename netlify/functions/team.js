@@ -18,6 +18,22 @@
 
 const crypto = require('crypto');
 const { connectLambda, getStore } = require('@netlify/blobs');
+
+// Strong (always up-to-date) reads where Netlify supports them, normal reads otherwise
+function getStoreSafe(name) {
+  let strong = null;
+  try { strong = getStore({ name, consistency: 'strong' }); } catch { strong = null; }
+  const normal = getStore(name);
+  const call = m => async (...a) => {
+    if (strong) {
+      try { return await strong[m](...a); }
+      catch (err) { if (!/uncachedEdgeURL|consistency/i.test(String(err && err.message))) throw err; strong = null; }
+    }
+    return normal[m](...a);
+  };
+  return { get: call('get'), set: call('set'), setJSON: call('setJSON'), list: call('list'), delete: call('delete') };
+}
+
 const config = require('./catalogues.json');
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -123,7 +139,7 @@ async function submit(body) {
   const ids = Array.isArray(v.interests) ? v.interests : [];
   const list = config.divisions.filter(d => ids.includes(d.id));
   const now = new Date().toISOString();
-  const store = getStore({ name: 'leads', consistency: 'strong' });
+  const store = getStoreSafe('leads');
   const key = 'wa-' + to;
   const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + to, firstAt: now, catalogues: [], messages: [] };
   const s = x => String(x == null ? '' : x).trim().slice(0, 300);
@@ -169,6 +185,7 @@ async function submit(body) {
       result.note = t.status === 'NOT_CREATED' ? 'Automatic sending is not set up yet.' : `Automatic sending is waiting for Meta approval (${t.status}).`;
     }
   }
+  lead.rev = (lead.rev || 0) + 1;
   await store.setJSON(key, lead);
   return json(200, result);
 }
@@ -176,7 +193,7 @@ async function submit(body) {
 // Remember every message WhatsApp accepted, so delivery reports (delivered / read / failed) can be shown later
 async function track(to, lead, sent, kind, at) {
   const ok = (sent || []).filter(x => x.ok && x.id);
-  const box = getStore({ name: 'outbox', consistency: 'strong' });
+  const box = getStoreSafe('outbox');
   await Promise.all(ok.map(x => box.setJSON(x.id, { to, title: x.title, at, kind, status: 'accepted' }).catch(() => {})));
   lead.sends = (lead.sends || []).concat(ok.map(x => ({ id: x.id, title: x.title, at, kind }))).slice(-10);
 }
@@ -184,7 +201,7 @@ async function track(to, lead, sent, kind, at) {
 // Did the visitor message the bot in the last 24 hours? Then a plain document message works (no template needed).
 async function inWindow(to) {
   try {
-    const t = await getStore({ name: 'inbound', consistency: 'strong' }).get(to);
+    const t = await getStoreSafe('inbound').get(to);
     return !!t && Date.now() - Date.parse(t) < 23.5 * 3600 * 1000;
   } catch { return false; }
 }
@@ -244,7 +261,7 @@ async function resend(body) {
   const ids = Array.isArray(body.ids) ? body.ids : [];
   const list = config.divisions.filter(d => ids.includes(d.id));
   if (!list.length) return json(400, { ok: false, error: 'Pick at least one catalogue.' });
-  const store = getStore({ name: 'leads', consistency: 'strong' });
+  const store = getStoreSafe('leads');
   const key = 'wa-' + to;
   const now = new Date().toISOString();
   const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + to, firstAt: now, catalogues: [], messages: [], source: 'Stand team' };
@@ -273,12 +290,13 @@ async function resend(body) {
   }
   lead.lastAt = now;
   if (body.staff) lead.lastSentBy = String(body.staff).slice(0, 80);
+  lead.rev = (lead.rev || 0) + 1;
   await store.setJSON(key, lead);
   return json(200, result);
 }
 
 async function listLeads() {
-  const store = getStore({ name: 'leads', consistency: 'strong' });
+  const store = getStoreSafe('leads');
   const { blobs } = await store.list();
   const all = await Promise.all(blobs.map(x => store.get(x.key, { type: 'json' })));
   const pick = l => ({
@@ -289,7 +307,7 @@ async function listLeads() {
     messages: (l.messages || []).map(m => m.text).slice(-5), callBack: !!l.callBack, optOut: !!l.optOut,
     error: l.lastError ? l.lastError.error : '', errorAt: l.lastError ? l.lastError.at : '', firstAt: l.firstAt || '', lastAt: l.lastAt || ''
   });
-  const box = getStore({ name: 'outbox', consistency: 'strong' });
+  const box = getStoreSafe('outbox');
   const withSends = await Promise.all(all.filter(Boolean).map(async l => {
     const p = pick(l);
     p.sends = await Promise.all((l.sends || []).slice(-6).map(async s => {

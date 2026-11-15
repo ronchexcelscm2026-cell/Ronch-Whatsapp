@@ -23,6 +23,22 @@
 
 const crypto = require('crypto');
 const { connectLambda, getStore } = require('@netlify/blobs');
+
+// Strong (always up-to-date) reads where Netlify supports them, normal reads otherwise
+function getStoreSafe(name) {
+  let strong = null;
+  try { strong = getStore({ name, consistency: 'strong' }); } catch { strong = null; }
+  const normal = getStore(name);
+  const call = m => async (...a) => {
+    if (strong) {
+      try { return await strong[m](...a); }
+      catch (err) { if (!/uncachedEdgeURL|consistency/i.test(String(err && err.message))) throw err; strong = null; }
+    }
+    return normal[m](...a);
+  };
+  return { get: call('get'), set: call('set'), setJSON: call('setJSON'), list: call('list'), delete: call('delete') };
+}
+
 const config = require('./catalogues.json');
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
@@ -93,36 +109,41 @@ function sendCatalogue(to, d) {
 
 /* ---------- Lead list (Netlify Blobs) ---------- */
 
+const recent = new Map(); // from -> latest lead saved by this server (storage reads can lag a few seconds)
+function remember(from, lead) {
+  recent.set(from, JSON.parse(JSON.stringify(lead)));
+  if (recent.size > 500) recent.delete(recent.keys().next().value);
+}
 async function loadLead(from) {
-  try {
-    const now = new Date().toISOString();
-    return (await getStore({ name: 'leads', consistency: 'strong' }).get('wa-' + from, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
-  } catch (err) {
-    console.error('Lead load failed', from, err && err.message);
-    return { mobile: '+' + from, firstAt: new Date().toISOString(), catalogues: [], messages: [] };
-  }
+  const now = new Date().toISOString();
+  let stored = null;
+  try { stored = await getStoreSafe('leads').get('wa-' + from, { type: 'json' }); }
+  catch (err) { console.error('Lead load failed', from, err && err.message); }
+  const mem = recent.get(from);
+  if (mem && (!stored || (mem.rev || 0) > (stored.rev || 0))) return JSON.parse(JSON.stringify(mem));
+  return stored || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
 }
 async function saveLead(from, lead) {
-  try { await getStore({ name: 'leads', consistency: 'strong' }).setJSON('wa-' + from, lead); }
+  lead.rev = (lead.rev || 0) + 1;
+  remember(from, lead);
+  try { await getStoreSafe('leads').setJSON('wa-' + from, lead); }
   catch (err) { console.error('Lead save failed', from, err && err.message); }
 }
 
 // One record per visitor number; every event updates it.
 async function recordLead(from, name, patch) {
   try {
-    const store = getStore({ name: 'leads', consistency: 'strong' });
-    const key = 'wa-' + from;
     const now = new Date().toISOString();
-    const lead = (await store.get(key, { type: 'json' })) || { mobile: '+' + from, firstAt: now, catalogues: [], messages: [] };
+    const lead = await loadLead(from);
     if (name) lead.name = name;
     if (patch.profile) Object.assign(lead, patch.profile);
     lead.lastAt = now;
-    if (patch.catalogues) lead.catalogues = Array.from(new Set(lead.catalogues.concat(patch.catalogues)));
-    if (patch.message) lead.messages = lead.messages.concat([{ at: now, text: patch.message.slice(0, 500) }]).slice(-10);
+    if (patch.catalogues) lead.catalogues = Array.from(new Set((lead.catalogues || []).concat(patch.catalogues)));
+    if (patch.message) lead.messages = (lead.messages || []).concat([{ at: now, text: patch.message.slice(0, 500) }]).slice(-10);
     if (patch.sales) lead.callBack = now;
     if (patch.optOut) lead.optOut = now;
     if (patch.failed) lead.lastError = { at: now, error: patch.failed.slice(0, 300) };
-    await store.setJSON(key, lead);
+    await saveLead(from, lead);
   } catch (err) {
     console.error('Lead save failed', from, err && err.message);
   }
@@ -281,7 +302,7 @@ const seen = new Set();
 const RANK = { accepted: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
 async function updateOutbox(s) {
   try {
-    const box = getStore({ name: 'outbox', consistency: 'strong' });
+    const box = getStoreSafe('outbox');
     const o = await box.get(s.id, { type: 'json' });
     if (!o) return;
     if ((RANK[s.status] || 0) <= (RANK[o.status] || 0)) return;
@@ -301,7 +322,7 @@ async function firstTime(id) {
   if (seen.has(id)) return false;
   seen.add(id); if (seen.size > 2000) seen.delete(seen.values().next().value);
   try {
-    const store = getStore({ name: 'seen', consistency: 'strong' });
+    const store = getStoreSafe('seen');
     if (await store.get(id)) return false;
     const res = await store.set(id, new Date().toISOString(), { onlyIfNew: true });
     if (res && res.modified === false) return false;
@@ -354,7 +375,7 @@ exports.handler = async (event) => {
         jobs.push(firstTime(msg.id).then(fresh => {
           if (!fresh) { console.log('Duplicate delivery ignored', msg.id); return; }
           // visitor wrote to us: for the next 24 h the team page can send PDFs without a template
-          getStore({ name: 'inbound', consistency: 'strong' }).set(msg.from, new Date().toISOString()).catch(() => {});
+          getStoreSafe('inbound').set(msg.from, new Date().toISOString()).catch(() => {});
           return handleMessage(msg, contact);
         }).catch(err => {
           console.error(err);
