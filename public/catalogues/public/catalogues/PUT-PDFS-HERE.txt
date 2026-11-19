@@ -1,0 +1,9 @@
+Put the catalogue PDFs in this folder with exactly these names:
+
+Facade-Landscape.pdf    Facade and Landscape Lighting
+Solar.pdf               Solar Lighting
+LED-Drivers.pdf         LED Drivers (CV/CC)
+Projection-Mapping.pdf  Projection Mapping
+LED-Displays.pdf        LED Displays
+
+Keep each file under 25 MB (GitHub upload limit).
